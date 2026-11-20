@@ -52,7 +52,7 @@ export function ViewSwitcherDropdown<T extends string>({
         onClick={() => setIsOpen((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className="w-full h-9 px-3 rounded-[10px] bg-[#f8f9fa] hover:bg-neutral-100/80 border border-black/[0.08] flex items-center justify-between gap-2 text-left transition active:scale-[0.99] cursor-pointer"
+        className="w-full h-10 px-3 rounded-xl bg-white hover:bg-[#f5f4f0] border border-black/[0.07] flex items-center justify-between gap-2 text-left transition active:scale-[0.99] cursor-pointer"
       >
         <div className="flex items-center gap-2 min-w-0">
           <span className="w-5 h-5 rounded-md bg-white border border-black/[0.06] flex items-center justify-center shrink-0 text-[#059669]">
@@ -79,7 +79,7 @@ export function ViewSwitcherDropdown<T extends string>({
         <div
           role="listbox"
           aria-label="界面切换列表"
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 rounded-xl bg-white border border-black/[0.08] shadow-[0_14px_32px_-8px_rgba(15,23,42,0.18)] p-1.5 space-y-1"
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 rounded-xl bg-white border border-black/[0.08] shadow-[0_14px_32px_-8px_rgba(20,20,19,0.18)] p-1.5 space-y-1"
         >
           {options.map((opt) => {
             const isSelected = opt.value === value;
@@ -96,14 +96,14 @@ export function ViewSwitcherDropdown<T extends string>({
                 className={`w-full px-3 py-2 rounded-lg flex items-center justify-between gap-2 text-left transition cursor-pointer ${
                   isSelected
                     ? 'bg-[#ecfdf5] text-[#065f46] ring-1 ring-[#10b981]/30'
-                    : 'hover:bg-neutral-50 text-neutral-800'
+                    : 'hover:bg-[#f7f6f2] text-[#141413]'
                 }`}
               >
                 <div className="min-w-0">
                   <div className="text-xs font-bold truncate">{opt.label}</div>
                   {opt.description && (
                     <div
-                      className={`text-[10px] mt-0.5 truncate ${
+                      className={`text-[11px] mt-0.5 truncate ${
                         isSelected ? 'text-[#047857]/80' : 'text-neutral-400'
                       }`}
                     >

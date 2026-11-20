@@ -12,11 +12,15 @@ export type SmsPurpose = 'login' | 'bind' | 'reset';
 export interface SmsCaptcha {
   id: string;
   question: string;
+  sig?: string;
 }
 
 export interface SmsCaptchaAnswer {
-  id: string;
-  answer: string;
+  id?: string;
+  answer?: string;
+  captchaId?: string;
+  captchaAnswer?: string;
+  captchaSig?: string;
 }
 
 export interface SmsSendResult {
@@ -26,6 +30,10 @@ export interface SmsSendResult {
   /** 演示模式：把验证码直接回传，方便界面提示 */
   devCode?: string;
   cooldownSeconds?: number;
+  retryAfter?: number;
+  mock?: boolean;
+  captchaRequired?: boolean;
+  captcha?: SmsCaptcha;
 }
 
 export interface SmsVerifyResult {
@@ -71,7 +79,9 @@ export async function sendSmsCode(
     ok: true,
     message: `验证码已发送（演示模式固定 ${DEMO_SMS_CODE}）`,
     devCode: DEMO_SMS_CODE,
-    cooldownSeconds: 60
+    cooldownSeconds: 60,
+    retryAfter: 60,
+    mock: true
   };
 }
 

@@ -1,10 +1,11 @@
 import { UserProfile } from '../types/user';
+import defaultMemberAvatar from '../assets/images/member_avatar_1795198188222.jpg';
 
 export const INITIAL_USER_PROFILE: UserProfile = {
   uid: 'tcb_u_88201948',
   nickname: 'Urban Foodie (美食探险家)',
   phone: '138-8888-9201',
-  avatar: '/img/bf32727d20d1.webp',
+  avatar: defaultMemberAvatar,
   bio: '黑曜石流动餐车站常驻先锋食客，热衷和牛炭烤与冷萃特调。',
   gender: 'secret',
   birthday: '1998-06-18',

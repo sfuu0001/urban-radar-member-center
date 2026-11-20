@@ -39,6 +39,8 @@ interface UserCouponsModalProps {
   onSelectCouponToUse?: (couponCode: string) => void;
   onGoToMenu?: () => void;
   isVIPActive?: boolean;
+  embedded?: boolean;
+  onCouponsChange?: () => void;
 }
 
 export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
@@ -46,7 +48,9 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
   onClose,
   onSelectCouponToUse,
   onGoToMenu,
-  isVIPActive = true
+  isVIPActive = true,
+  embedded = false,
+  onCouponsChange
 }) => {
   const [activeTab, setActiveTab] = useState<'available' | 'market' | 'used' | 'expired'>('available');
   const [couponInput, setCouponInput] = useState('');
@@ -74,6 +78,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
     setUserCoupons(newList);
     // 统一走 couponEngine 单点：本地落盘 + 云差异上行同出一口（直写会绕过云同步基线判定）
     saveUserCouponRecords(newList);
+    onCouponsChange?.();
   };
 
   // Filter coupons by status
@@ -229,25 +234,31 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
       ? usedCoupons
       : expiredCoupons;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-black/75 backdrop-blur-sm animate-in fade-in select-none">
-      <div className="bg-[#f9f9f7] w-full max-w-2xl max-h-[90vh] rounded-2xl border border-[#e2e3e1] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95">
-        {/* Toast Notification */}
-        <AnimatePresence>
-          {toastMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-[#0d0d0e] text-white text-xs px-3 py-1.5 rounded-full shadow-xl border border-neutral-700 flex items-center gap-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>{toastMessage}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+  const innerBody = (
+    <div
+      className={
+        embedded
+          ? 'bg-white w-full rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.06)] flex flex-col overflow-hidden relative select-none'
+          : 'bg-[#f9f9f7] w-full max-w-2xl max-h-[90vh] rounded-2xl border border-[#e2e3e1] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 relative'
+      }
+    >
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-[#0d0d0e] text-white text-xs px-3 py-1.5 rounded-full shadow-xl border border-neutral-700 flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Modal Header */}
+      {/* Header */}
+      {!embedded ? (
         <div className="bg-[#0d0d0e] text-white p-3 sm:p-3.5 flex items-center justify-between border-b border-neutral-800 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-amber-400 text-black flex items-center justify-center font-black shadow-sm shrink-0">
@@ -276,6 +287,19 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
+      ) : (
+        <div className="px-3.5 py-2.5 bg-neutral-900 text-white flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] font-bold text-amber-300 tabular-nums shrink-0">
+              {availableCoupons.length} 张可用
+            </span>
+            <span className="text-[11px] text-neutral-300 truncate">
+              · 累计最高可省 <strong className="text-amber-400">¥{totalPotentialSavings.toFixed(0)}</strong>
+            </span>
+          </div>
+          <span className="text-[10px] text-neutral-400 shrink-0">结算自动择优</span>
+        </div>
+      )}
 
         {/* Promo Code Input Bar */}
         <div className="p-2.5 bg-white border-b border-[#e2e3e1] shrink-0">
@@ -356,7 +380,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
         </div>
 
         {/* Modal Scroll Content */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+        <div className={embedded ? 'max-h-[420px] overflow-y-auto p-3 space-y-2.5 bg-[#f9f9f7]' : 'flex-1 overflow-y-auto p-3 space-y-2.5'}>
           {activeTab === 'market' ? (
             <div className="space-y-2.5">
               <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-center justify-between">
@@ -527,17 +551,28 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-2.5 bg-[#f0f0ed] border-t border-[#e2e3e1] flex items-center justify-between text-xs text-[#787770] shrink-0">
-          <span className="text-[11px]">黑曜石餐车网络 · 结算时自动推荐最佳抵扣券</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1 bg-white border border-[#e2e3e1] hover:bg-neutral-100 text-black font-bold rounded-lg transition-colors cursor-pointer text-xs"
-          >
-            关闭
-          </button>
-        </div>
-      </div>
+        {!embedded && (
+          <div className="p-2.5 bg-[#f0f0ed] border-t border-[#e2e3e1] flex items-center justify-between text-xs text-[#787770] shrink-0">
+            <span className="text-[11px]">黑曜石餐车网络 · 结算时自动推荐最佳抵扣券</span>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1 bg-white border border-[#e2e3e1] hover:bg-neutral-100 text-black font-bold rounded-lg transition-colors cursor-pointer text-xs"
+            >
+              关闭
+            </button>
+          </div>
+        )}
+    </div>
+  );
+
+  if (embedded) {
+    return innerBody;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-black/75 backdrop-blur-sm animate-in fade-in select-none">
+      {innerBody}
     </div>
   );
 };

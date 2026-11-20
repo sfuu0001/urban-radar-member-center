@@ -8,12 +8,20 @@ import {
 import { findUuidByDeviceCode } from '../utils/deviceIdentity';
 import { wbCloud } from '../utils/wbCloud';
 
+export interface DeviceIdentityCardProps {
+  embedded?: boolean;
+  onCodeChange?: (code: string) => void;
+}
+
 /**
  * 设备身份卡片
  * - 展示脱敏后的本机标识与 6 位设备码（云端不可用时自动回退本地生成码）
  * - 支持输入其他设备的 6 位码进行跨端身份对齐
  */
-export const DeviceIdentityCard: React.FC = () => {
+export const DeviceIdentityCard: React.FC<DeviceIdentityCardProps> = ({
+  embedded = false,
+  onCodeChange
+}) => {
   const [pid, setPid] = useState('');
   const [deviceCode, setDeviceCode] = useState('');
   const [input, setInput] = useState('');
@@ -36,6 +44,7 @@ export const DeviceIdentityCard: React.FC = () => {
     const fallbackCode = getLocalDeviceCode();
     if (myPid) setPid(myPid);
     setDeviceCode(fallbackCode);
+    onCodeChange?.(fallbackCode);
 
     if (!myPid) return;
     void (async () => {
@@ -48,12 +57,15 @@ export const DeviceIdentityCard: React.FC = () => {
         const code = String(
           (data?.[0] as { device_code?: string } | undefined)?.device_code || ''
         );
-        if (code) setDeviceCode(code);
+        if (code) {
+          setDeviceCode(code);
+          onCodeChange?.(code);
+        }
       } catch {
         /* 保持本地设备码兜底 */
       }
     })();
-  }, []);
+  }, [onCodeChange]);
 
   const masked = pid ? `${pid.slice(0, 5)}****${pid.slice(-4)}` : '尚未生成';
 
@@ -86,6 +98,7 @@ export const DeviceIdentityCard: React.FC = () => {
       }
       setPid(target);
       setDeviceCode(code);
+      onCodeChange?.(code);
       setInput('');
       setMsg('已对齐为同一身份');
     } catch {
@@ -103,28 +116,32 @@ export const DeviceIdentityCard: React.FC = () => {
     setTimeout(() => setCopied(false), 1800);
   };
 
-  return (
-    <section
-      data-purpose="device-identity"
-      className="w-full bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.06)] p-4"
-    >
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-neutral-100 text-[#0f172a] flex items-center justify-center">
-            <Smartphone className="w-3.5 h-3.5" />
+  const body = (
+    <>
+      {!embedded ? (
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#f1efe9] text-[#141413] flex items-center justify-center">
+              <Smartphone className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h3 className="text-[13px] font-extrabold text-[#141413] leading-snug">同桌设备身份</h3>
+              <p className="text-[11px] text-neutral-400">同台跨浏览器点餐对齐识别码</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-[13px] font-extrabold text-[#0f172a] leading-snug">同桌设备身份</h3>
-            <p className="text-[11px] text-neutral-400">同台跨浏览器点餐对齐识别码</p>
-          </div>
+          <span className="font-mono text-[11px] text-neutral-400 tabular-nums">{masked}</span>
         </div>
-        <span className="font-mono text-[11px] text-neutral-400 tabular-nums">{masked}</span>
-      </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2 mb-2.5">
+          <span className="text-[11px] text-neutral-400">设备标识</span>
+          <span className="font-mono text-[11px] text-neutral-500 tabular-nums">{masked}</span>
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 mb-3">
-        <div className="flex-1 bg-neutral-50 border border-black/[0.06] rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+      <div className="flex items-center gap-2 mb-2.5">
+        <div className="flex-1 bg-[#f7f6f2] border border-black/[0.06] rounded-xl px-3.5 py-2.5 flex items-center justify-between">
           <span className="text-[11px] font-semibold text-neutral-400">本机码</span>
-          <span className="font-mono text-base font-black tracking-[0.28em] text-[#0f172a] tabular-nums">
+          <span className="font-mono text-sm font-black tracking-[0.26em] text-[#141413] tabular-nums">
             {deviceCode || 'DEMO01'}
           </span>
         </div>
@@ -133,7 +150,7 @@ export const DeviceIdentityCard: React.FC = () => {
           onClick={handleCopy}
           aria-label="复制设备码"
           title="复制设备码"
-          className="w-11 h-11 rounded-xl border border-black/[0.08] bg-white hover:bg-neutral-50 text-neutral-700 flex items-center justify-center active:scale-95 transition cursor-pointer shrink-0"
+          className="w-10 h-10 rounded-xl border border-black/[0.08] bg-white hover:bg-[#f7f6f2] text-neutral-700 flex items-center justify-center active:scale-95 transition cursor-pointer shrink-0"
         >
           {copied ? (
             <Check className="w-4 h-4 text-emerald-600" />
@@ -143,14 +160,14 @@ export const DeviceIdentityCard: React.FC = () => {
         </button>
       </div>
 
-      <div className="border-t border-black/[0.05] pt-3">
+      <div className={embedded ? 'pt-1' : 'border-t border-black/[0.05] pt-3'}>
         <div className="flex items-center gap-2">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value.toUpperCase().slice(0, 6))}
             placeholder={inSession ? '就餐中不可对齐' : '输入另一台设备的 6 位码'}
             disabled={inSession}
-            className="flex-1 h-10 bg-neutral-50 border border-black/[0.07] rounded-xl px-3 font-mono text-xs tracking-widest outline-none focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 disabled:bg-neutral-100 disabled:text-neutral-400"
+            className="flex-1 h-10 bg-[#f7f6f2] border border-black/[0.07] rounded-xl px-3 font-mono text-xs tracking-widest outline-none focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 disabled:bg-[#f1efe9] disabled:text-neutral-400"
           />
           <button
             type="button"
@@ -158,8 +175,8 @@ export const DeviceIdentityCard: React.FC = () => {
             disabled={busy || input.length !== 6 || inSession}
             className={`h-10 px-3.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition shrink-0 ${
               busy || input.length !== 6 || inSession
-                ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                : 'bg-[#0f172a] hover:bg-neutral-800 text-white cursor-pointer active:scale-95'
+                ? 'bg-[#f1efe9] text-neutral-400 cursor-not-allowed'
+                : 'bg-[#141413] hover:bg-neutral-800 text-white cursor-pointer active:scale-95'
             }`}
           >
             <Link2 className="w-3.5 h-3.5" />
@@ -168,6 +185,23 @@ export const DeviceIdentityCard: React.FC = () => {
         </div>
         {msg && <p className="text-[11px] text-emerald-700 font-medium mt-2">{msg}</p>}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div data-purpose="device-identity" className="w-full pt-0.5 pb-3.5">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <section
+      data-purpose="device-identity"
+      className="w-full bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(20,20,19,0.06)] p-4"
+    >
+      {body}
     </section>
   );
 };

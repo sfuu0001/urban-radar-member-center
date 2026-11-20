@@ -135,7 +135,7 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
 
   // SMS Timer Effect
   useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     if (countdown > 0) {
       timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
     }
@@ -146,7 +146,7 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
 
   // 密码 tab 短信码倒计时（与短信 tab 独立，避免互相干扰）
   useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     if (pwdCountdown > 0) {
       timer = setTimeout(() => setPwdCountdown((c) => c - 1), 1000);
     }

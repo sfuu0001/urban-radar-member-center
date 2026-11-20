@@ -2,7 +2,7 @@ export interface UserAddress {
   id: string;
   name: string;
   phone: string;
-  tag: '公司' | '家' | '学校' | '其他';
+  tag: string;
   address: string;
   detail: string;
   isDefault: boolean;
@@ -112,6 +112,7 @@ export interface UserProfile {
   antiWipeRecoveryTested?: boolean;
   status?: 'normal' | 'banned' | 'hardware_blacklisted';
   violationRecord?: UserViolationRecord;
+  role?: string;
 }
 
 export interface CloudFunctionCallLog {

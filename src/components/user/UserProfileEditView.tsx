@@ -67,8 +67,27 @@ interface EditableSnapshot {
   addresses: UserAddress[];
 }
 
+const ADDRESS_TAG_BADGE_PRESETS = ['公司', '家', '学校', '写字楼', '住宅', '高校', '临时', '其他'] as const;
+
+function getAddressBadgeClassName(tag: string): string {
+  const normalized = tag.trim();
+  if (!normalized) {
+    return 'bg-[#f1efe9] text-neutral-500 border-black/[0.08] hover:bg-[#e6e3da]';
+  }
+  if (normalized === '家' || normalized === '住宅') {
+    return 'bg-emerald-50 text-emerald-800 border-emerald-200/90 hover:bg-emerald-100/80';
+  }
+  if (normalized === '临时') {
+    return 'bg-amber-50 text-amber-800 border-amber-200/90 hover:bg-amber-100/80';
+  }
+  if (normalized === '公司' || normalized === '写字楼' || normalized === '学校' || normalized === '高校') {
+    return 'bg-[#f1efe9] text-[#141413] border-black/[0.08] hover:bg-[#e6e3da]';
+  }
+  return 'bg-amber-50 text-amber-800 border-amber-200/90 hover:bg-amber-100/80';
+}
+
 const PRESET_DISTRICT_ADDRESSES: {
-  tag: '公司' | '家' | '学校' | '其他';
+  tag: string;
   address: string;
   detail: string;
   houseNumber: string;
@@ -123,37 +142,6 @@ const PRESET_DISTRICT_ADDRESSES: {
   }
 ];
 
-const FALLBACK_ADDRESSES: UserAddress[] = [
-  {
-    id: 'addr-default-1',
-    name: '张伟',
-    phone: '13800138000',
-    tag: '公司',
-    address: '静安大悦城南座办公楼',
-    detail: '西藏北路166号南座801室',
-    houseNumber: '801室',
-    remarks: '放置前台或门口蜂巢柜',
-    isDefault: true,
-    latitude: 31.2435,
-    longitude: 121.469,
-    createdAt: '2026-08-01 09:20:11'
-  },
-  {
-    id: 'addr-sub-2',
-    name: '张伟',
-    phone: '13800138000',
-    tag: '家',
-    address: '静安国际中心公寓区',
-    detail: '汉中路光复路口1号楼',
-    houseNumber: '1202室',
-    remarks: '到达后电话联系，请轻声叩门',
-    isDefault: false,
-    latitude: 31.241,
-    longitude: 121.462,
-    createdAt: '2026-08-18 14:15:30'
-  }
-];
-
 function normalizeDateInput(raw?: string): string {
   if (!raw) return '1990-01-01';
   const cleaned = raw.trim().replace(/\//g, '-');
@@ -164,10 +152,11 @@ function normalizeDateInput(raw?: string): string {
 }
 
 function buildInitialSnapshot(profile: UserProfile): EditableSnapshot {
+  const isGuest = !profile.uid || String(profile.uid).toLowerCase() === 'guest';
   return {
-    nickname: profile.nickname || '张伟 (店长)',
-    avatar: profile.avatar || '🧑‍💻',
-    bio: profile.bio || '店长 / 运营总管 · 设备硬件指纹绑定中',
+    nickname: profile.nickname || (isGuest ? '访客食客' : '张伟 (店长)'),
+    avatar: profile.avatar || (isGuest ? '访' : '🧑‍💻'),
+    bio: profile.bio || (isGuest ? '访客体验模式 · 登录后同步个人档案' : '黑曜石流动餐车站先锋食客'),
     gender: profile.gender || 'secret',
     birthday: normalizeDateInput(profile.birthday),
     spiciness: profile.preferences?.spiciness || 'mild',
@@ -178,14 +167,7 @@ function buildInitialSnapshot(profile: UserProfile): EditableSnapshot {
     silentCall: profile.preferences ? !profile.preferences.radarTracking : false,
     autoCoupons: profile.preferences?.autoApplyCoupons !== false,
     dietaryNotes: profile.preferences?.dietaryNote || '无特殊过敏原',
-    addresses:
-      profile.addresses && profile.addresses.length > 0
-        ? profile.addresses
-        : FALLBACK_ADDRESSES.map((a) => ({
-            ...a,
-            name: profile.nickname || a.name,
-            phone: profile.phone || a.phone
-          }))
+    addresses: Array.isArray(profile.addresses) ? profile.addresses : []
   };
 }
 
@@ -212,7 +194,7 @@ const SectionCard: React.FC<{
   divided?: boolean;
 }> = ({ children, className = '', divided = false }) => (
   <section
-    className={`bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.06)] ${
+    className={`bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(20,20,19,0.06)] ${
       divided ? 'px-4 divide-y divide-black/[0.05]' : 'p-4'
     } ${className}`}
   >
@@ -228,7 +210,7 @@ const SectionHeader: React.FC<{
 }> = ({ title, subtitle, right }) => (
   <div className="flex items-center justify-between gap-3">
     <div className="min-w-0">
-      <h2 className="text-[13px] font-extrabold text-[#0f172a] tracking-tight leading-snug">
+      <h2 className="text-[13px] font-extrabold text-[#141413] tracking-tight leading-snug">
         {title}
       </h2>
       {subtitle && <p className="text-[11px] text-neutral-400 mt-0.5">{subtitle}</p>}
@@ -264,11 +246,15 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     }
   }, [initialTab]);
 
-  const [activeTab, setActiveTab] = useState<TabType>(resolvedInitialTab);
+  const [activeWindowTab, setActiveWindowTab] = useState<TabType | null>(() =>
+    initialTab && initialTab !== 'profile' ? resolvedInitialTab : null
+  );
 
   useEffect(() => {
-    setActiveTab(resolvedInitialTab);
-  }, [resolvedInitialTab]);
+    if (initialTab && initialTab !== 'profile') {
+      setActiveWindowTab(resolvedInitialTab);
+    }
+  }, [initialTab, resolvedInitialTab]);
 
   // Baseline snapshot for dirty detection
   const [baseline, setBaseline] = useState<EditableSnapshot>(() =>
@@ -296,7 +282,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
   // Addresses Draft State
   const [addresses, setAddresses] = useState<UserAddress[]>(baseline.addresses);
 
-  // Re-sync if external account changes (e.g., switch account via Auth Modal)
+  // Re-sync if external account or synced profile snapshot changes (e.g., switch account, logout, or recharge)
   useEffect(() => {
     const nextSnap = buildInitialSnapshot(userProfile);
     setBaseline(nextSnap);
@@ -312,7 +298,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     setAutoCoupons(nextSnap.autoCoupons);
     setDietaryNotes(nextSnap.dietaryNotes);
     setAddresses(nextSnap.addresses);
-  }, [userProfile.uid]);
+  }, [userProfile.uid, userProfile.phone, userProfile.cloudSyncedAt]);
 
   useEffect(() => {
     setAvatarImgError(false);
@@ -392,11 +378,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
   const [isSendingOldCode, setIsSendingOldCode] = useState(false);
   const [isVerifyingOld, setIsVerifyingOld] = useState(false);
 
-  // Address Search, Filter & Delete Guard
+  // Address Search, Inline Tag Badge Editor & Delete Guard
   const [addressSearchQuery, setAddressSearchQuery] = useState('');
-  const [addressTagFilter, setAddressTagFilter] = useState<'all' | '公司' | '家' | '学校' | '其他'>(
-    'all'
-  );
+  const [editingTagAddrId, setEditingTagAddrId] = useState<string | null>(null);
+  const [inlineTagDraft, setInlineTagDraft] = useState('');
   const [confirmDeleteAddrId, setConfirmDeleteAddrId] = useState<string | null>(null);
 
   // Inline Address Add/Edit State
@@ -404,7 +389,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
   const [editingAddress, setEditingAddress] = useState<UserAddress | null>(null);
   const [addrName, setAddrName] = useState('');
   const [addrPhone, setAddrPhone] = useState('');
-  const [addrTag, setAddrTag] = useState<'公司' | '家' | '学校' | '其他'>('公司');
+  const [addrTag, setAddrTag] = useState<string>('公司');
   const [addrLocation, setAddrLocation] = useState('');
   const [addrHouseNumber, setAddrHouseNumber] = useState('');
   const [addrDetail, setAddrDetail] = useState('');
@@ -418,12 +403,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
   const [isAddressSearchOpen, setIsAddressSearchOpen] = useState(false);
   const [isPresetMenuOpen, setIsPresetMenuOpen] = useState(false);
   const [isTechDetailsOpen, setIsTechDetailsOpen] = useState(false);
-  const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
   const presetMenuRef = useRef<HTMLDivElement>(null);
-  const tabMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isPresetMenuOpen && !isTabMenuOpen) return;
+    if (!isPresetMenuOpen) return;
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       if (
         isPresetMenuOpen &&
@@ -432,14 +415,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
       ) {
         setIsPresetMenuOpen(false);
       }
-      if (isTabMenuOpen && tabMenuRef.current && !tabMenuRef.current.contains(e.target as Node)) {
-        setIsTabMenuOpen(false);
-      }
     };
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsPresetMenuOpen(false);
-        setIsTabMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutside);
@@ -450,7 +429,20 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
       document.removeEventListener('touchstart', handleOutside);
       document.removeEventListener('keydown', handleEsc);
     };
-  }, [isPresetMenuOpen, isTabMenuOpen]);
+  }, [isPresetMenuOpen]);
+
+  useEffect(() => {
+    if (!activeWindowTab) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isPresetMenuOpen) {
+        setActiveWindowTab(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [activeWindowTab, isPresetMenuOpen]);
 
   // Security Token & Sync States
   const [hwToken, setHwToken] = useState(() => getDemoDeviceHash());
@@ -465,9 +457,18 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
   const [financeFilter, setFinanceFilter] = useState<'all' | 'recharge' | 'expense' | 'reward'>(
     'all'
   );
+  const [selectedRechargeAmount, setSelectedRechargeAmount] = useState<number>(100);
+  const [isRecharging, setIsRecharging] = useState(false);
 
-  const balance = userProfile.balance ?? 158.5;
-  const points = userProfile.points ?? 1280;
+  const RECHARGE_TIERS = [
+    { amount: 50, bonus: 0, label: '基础储值' },
+    { amount: 100, bonus: 10, label: '赠 ¥10' },
+    { amount: 200, bonus: 25, label: '赠 ¥25' },
+    { amount: 500, bonus: 80, label: '赠 ¥80' }
+  ] as const;
+
+  const balance = userProfile.balance ?? 0;
+  const points = userProfile.points ?? 0;
 
   const toggleMemberNotification = () => {
     setIsNotificationOn((prev) => {
@@ -549,6 +550,8 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     setAddresses(baseline.addresses);
     setIsAddingAddress(false);
     setEditingAddress(null);
+    setEditingTagAddrId(null);
+    setInlineTagDraft('');
     setConfirmDeleteAddrId(null);
     toast.info('已还原修改', '所有字段已恢复至上次保存状态');
   };
@@ -762,11 +765,74 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     toast.success('安全凭据重签成功', `硬件指纹密钥已更新为：${newToken}`);
   };
 
+  const handleConfirmRecharge = async () => {
+    if (isGuestUid) {
+      toast.warning('当前为访客模式', '请先返回会员中心登录账号后再进行储值充值');
+      return;
+    }
+    const tier = RECHARGE_TIERS.find((t) => t.amount === selectedRechargeAmount) || RECHARGE_TIERS[1];
+    setIsRecharging(true);
+    try {
+      const nowLabel = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(/\//g, '-');
+      const afterRecharge = Number((balance + tier.amount).toFixed(2));
+      const afterTotal = Number((afterRecharge + tier.bonus).toFixed(2));
+      const newEntries: UserWalletTransaction[] = [
+        ...(tier.bonus > 0
+          ? [
+              {
+                id: `w-bonus-${Date.now()}`,
+                type: 'reward' as const,
+                title: `储值满赠返现 (+¥${tier.bonus})`,
+                amount: tier.bonus,
+                balanceAfter: afterTotal,
+                timestamp: nowLabel
+              }
+            ]
+          : []),
+        {
+          id: `w-chg-${Date.now()}`,
+          type: 'recharge' as const,
+          title: '账户在线快捷储值',
+          amount: tier.amount,
+          balanceAfter: afterRecharge,
+          timestamp: nowLabel
+        }
+      ];
+      const nextProfile: UserProfile = {
+        ...userProfile,
+        balance: afterTotal,
+        points: points + tier.amount,
+        walletHistory: [...newEntries, ...(userProfile.walletHistory || [])],
+        cloudSyncedAt: new Date().toISOString()
+      };
+      onProfileUpdated(nextProfile);
+      await syncUserProfileToCloud(nextProfile).catch(() => {});
+      setLastSyncTime(new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+      toast.success(
+        '储值成功',
+        tier.bonus > 0
+          ? `已到账 ¥${tier.amount + tier.bonus}（含满赠 ¥${tier.bonus}），当前余额 ¥${afterTotal.toFixed(2)}`
+          : `已到账 ¥${tier.amount}，当前余额 ¥${afterTotal.toFixed(2)}`
+      );
+    } finally {
+      setIsRecharging(false);
+    }
+  };
+
   const handleSaveAddress = () => {
     if (!addrLocation.trim()) {
       toast.warning('请输入地址', '小区/写字楼或地址位置不能为空');
       return;
     }
+
+    const finalTag = addrTag.trim() || '常用';
 
     if (editingAddress) {
       const updated = addresses.map((a) =>
@@ -775,7 +841,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
               ...a,
               name: addrName.trim() || nickname,
               phone: addrPhone.trim() || phone,
-              tag: addrTag,
+              tag: finalTag,
               address: addrLocation.trim(),
               houseNumber: addrHouseNumber.trim(),
               detail: addrDetail.trim() || addrLocation.trim(),
@@ -792,7 +858,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
         id: `addr-${Date.now()}`,
         name: addrName.trim() || nickname,
         phone: addrPhone.trim() || phone,
-        tag: addrTag,
+        tag: finalTag,
         address: addrLocation.trim(),
         houseNumber: addrHouseNumber.trim(),
         detail: addrDetail.trim() || addrLocation.trim(),
@@ -839,6 +905,21 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     }));
     setAddresses(nextList);
     toast.info('默认地址已切换', '点击底部「保存更改」同步至默认点单设置');
+  };
+
+  const handleApplyAddressTagBadge = (id: string, rawTag: string) => {
+    const cleaned = rawTag.trim();
+    if (!cleaned) {
+      toast.warning('请输入标签徽章', '徽章名称不能为空');
+      return;
+    }
+    const nextTag = cleaned.slice(0, 8);
+    setAddresses((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, tag: nextTag } : a))
+    );
+    setEditingTagAddrId(null);
+    setInlineTagDraft('');
+    toast.success('已设置地址标签徽章', `徽章已更新为「${nextTag}」，记得保存更改`);
   };
 
   const handleSimulateGpsAutofill = () => {
@@ -919,15 +1000,14 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
 
   const filteredAddresses = useMemo(() => {
     return addresses.filter((a) => {
-      if (addressTagFilter !== 'all' && a.tag !== addressTagFilter) return false;
       if (addressSearchQuery.trim()) {
         const query = addressSearchQuery.trim().toLowerCase();
-        const fullStr = `${a.name} ${a.phone} ${a.address} ${a.detail} ${a.houseNumber || ''} ${a.remarks || ''}`.toLowerCase();
+        const fullStr = `${a.tag || ''} ${a.name} ${a.phone} ${a.address} ${a.detail} ${a.houseNumber || ''} ${a.remarks || ''}`.toLowerCase();
         return fullStr.includes(query);
       }
       return true;
     });
-  }, [addresses, addressTagFilter, addressSearchQuery]);
+  }, [addresses, addressSearchQuery]);
 
   const avatarPresets = ['🧑‍💻', '👨‍💼', '🧔‍♂️', '👩‍🍳', '🧑‍🎨', '😎', '⚡', '☕'];
 
@@ -987,9 +1067,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     }
   ];
 
-  const activeTabItem = tabsList.find((t) => t.id === activeTab) || tabsList[0];
-  const ActiveTabIcon = activeTabItem.icon;
   const dirtyTabLabels = tabsList.filter((t) => t.isDirty).map((t) => t.label);
+  const currentWindowTabItem = activeWindowTab
+    ? tabsList.find((t) => t.id === activeWindowTab) || null
+    : null;
 
   const filteredTransactions = useMemo(() => {
     return walletTransactions.filter((tx) => {
@@ -1007,14 +1088,14 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
 
   return (
     <div
-      className={`w-full min-h-screen bg-[#f5f5f3] text-[#0f172a] select-none font-sans ${
+      className={`w-full min-h-screen bg-[#f5f4f0] text-[#141413] select-none font-sans ${
         hasUnsavedChanges ? 'pb-28' : 'pb-12'
       }`}
     >
       <UnifiedPageHeader
-        title="资料设置"
-        onBack={onBack}
-        backLabel="返回中心"
+        title={currentWindowTabItem ? currentWindowTabItem.label : '资料设置'}
+        onBack={currentWindowTabItem ? () => setActiveWindowTab(null) : onBack}
+        backLabel={currentWindowTabItem ? '返回控制台' : '返回中心'}
         statusTone={isRadarLinkActive ? 'online' : 'offline'}
         statusTitle={
           isSyncing
@@ -1036,15 +1117,17 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
       />
 
       <div className="w-full mx-auto px-3.5 pt-3.5 flex flex-col gap-3">
-        {/* 顶部会员概览白卡（轻量化：去重同步时间，头像可点选直达更换，余额可点选直达对账） */}
-        <SectionCard className="!p-3.5 flex items-center justify-between gap-2.5">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('tab-profile');
-                setIsAvatarPickerOpen((prev) => !prev);
-              }}
+        {!currentWindowTabItem ? (
+          <>
+            {/* 顶部会员概览白卡（轻量化：去重同步时间，头像可点选直达更换，余额可点选直达对账） */}
+            <SectionCard className="!p-3.5 flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveWindowTab('tab-profile');
+                    setIsAvatarPickerOpen(true);
+                  }}
               title="更换数字头像"
               aria-label="更换数字头像"
               className="relative shrink-0 cursor-pointer group"
@@ -1074,13 +1157,13 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-sm font-extrabold text-[#0f172a] tracking-tight truncate">
+                <span className="text-sm font-extrabold text-[#141413] tracking-tight truncate">
                   {nickname || '张伟 (店长)'}
                 </span>
                 <span
-                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
+                  className={`px-1.5 py-0.5 rounded-md text-[11px] font-bold shrink-0 ${
                     isGuestUid
-                      ? 'bg-neutral-100 text-neutral-500'
+                      ? 'bg-[#f1efe9] text-neutral-500'
                       : 'bg-emerald-50 text-emerald-700'
                   }`}
                 >
@@ -1098,12 +1181,12 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('tab-finance')}
+            onClick={() => setActiveWindowTab('tab-finance')}
             title="查看资产与对账明细"
-            className="text-right shrink-0 pl-2.5 pr-1 py-1 -my-1 rounded-xl border-l border-black/[0.06] hover:bg-neutral-50 transition cursor-pointer flex items-center gap-1 group"
+            className="text-right shrink-0 pl-2.5 pr-1 py-1 -my-1 rounded-xl border-l border-black/[0.06] hover:bg-[#f7f6f2] transition cursor-pointer flex items-center gap-1 group"
           >
             <div>
-              <div className="text-[15px] font-black text-[#0f172a] tabular-nums leading-none">
+              <div className="text-[15px] font-black text-[#141413] tabular-nums leading-none">
                 ¥{balance.toFixed(2)}
               </div>
               <div className="text-[11px] font-medium text-neutral-400 mt-1 tabular-nums">
@@ -1114,125 +1197,61 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
           </button>
         </SectionCard>
 
-        {/* 5 分区收拢为紧凑型下拉选择条（对齐顶部视图切换器） */}
-        <div ref={tabMenuRef} className="relative" data-purpose="tab-navigator">
-          <button
-            type="button"
-            id={`tab-nav-${activeTabItem.id}`}
-            onClick={() => setIsTabMenuOpen((prev) => !prev)}
-            aria-haspopup="listbox"
-            aria-expanded={isTabMenuOpen}
-            aria-label="切换资料分区"
-            className="w-full h-11 px-3 rounded-xl bg-white hover:bg-neutral-50/80 border border-black/[0.06] shadow-[0_1px_4px_-2px_rgba(15,23,42,0.05)] flex items-center justify-between gap-2 text-left transition active:scale-[0.99] cursor-pointer"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="w-7 h-7 rounded-lg bg-[#0f172a] text-emerald-400 flex items-center justify-center shrink-0">
-                <ActiveTabIcon className="w-3.5 h-3.5" />
-              </span>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-xs font-extrabold text-[#0f172a] shrink-0">
-                  {activeTabItem.label}
-                </span>
-                <span className="text-neutral-300 shrink-0" aria-hidden="true">
-                  ·
-                </span>
-                <span className="text-[11px] text-neutral-400 truncate">
-                  {activeTabItem.description}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              {hasUnsavedChanges && (
-                <span
-                  title="存在未保存改动"
-                  aria-label="存在未保存改动"
-                  className="w-1.5 h-1.5 rounded-full bg-amber-500"
-                />
-              )}
-              <ChevronDown
-                className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${
-                  isTabMenuOpen ? 'rotate-180 text-[#0f172a]' : ''
-                }`}
-              />
-            </div>
-          </button>
-
-          {isTabMenuOpen && (
-            <div
-              role="listbox"
-              aria-label="资料分区列表"
-              className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-2xl bg-white border border-black/[0.08] shadow-[0_14px_32px_-8px_rgba(15,23,42,0.18)] p-1.5 space-y-1 animate-in fade-in"
-            >
-              {tabsList.map((t) => {
-                const Icon = t.icon;
-                const isActive = activeTab === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="option"
-                    aria-selected={isActive}
-                    data-tab={t.id}
-                    onClick={() => {
-                      setActiveTab(t.id);
-                      setIsTabMenuOpen(false);
-                    }}
-                    className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 text-left transition cursor-pointer ${
-                      isActive
-                        ? 'bg-[#ecfdf5] text-[#065f46] ring-1 ring-[#10b981]/30'
-                        : 'hover:bg-neutral-50 text-[#0f172a]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                          isActive
-                            ? 'bg-white text-[#059669] shadow-xs'
-                            : 'bg-neutral-100 text-neutral-500'
-                        }`}
-                      >
-                        <Icon className="w-3.5 h-3.5" />
+        {/* ==================== 5 分区内嵌窗口入口列表 ==================== */}
+        <SectionCard divided>
+          <div className="py-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-extrabold text-[#141413]">资料与参数控制台</h2>
+            <span className="text-[11px] text-neutral-400">点击进入内嵌窗口</span>
+          </div>
+          {tabsList.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                id={`tab-nav-${t.id}`}
+                data-tab={t.id}
+                onClick={() => setActiveWindowTab(t.id)}
+                className="w-full py-3.5 hover:bg-[#faf9f6] transition flex items-center justify-between gap-2.5 text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="w-9 h-9 rounded-xl bg-[#f1efe9] text-neutral-700 flex items-center justify-center shrink-0">
+                    <Icon className="w-4 h-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-[#141413] truncate">
+                        {t.label}
                       </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold truncate">{t.label}</span>
-                          {t.isDirty && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-bold leading-none shrink-0">
-                              未保存
-                            </span>
-                          )}
-                        </div>
-                        <div
-                          className={`text-[10px] mt-0.5 truncate ${
-                            isActive ? 'text-[#047857]/80' : 'text-neutral-400'
-                          }`}
-                        >
-                          {t.description}
-                        </div>
-                      </div>
+                      {t.isDirty && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold leading-none shrink-0">
+                          未保存
+                        </span>
+                      )}
                     </div>
-                    {isActive && (
-                      <span className="w-5 h-5 rounded-full bg-[#10b981]/15 text-[#059669] flex items-center justify-center shrink-0">
-                        <Check className="w-3 h-3" strokeWidth={2.6} />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* ==================== TAB 1: 基本资料（收拢为单一整洁档案白卡） ==================== */}
-        {activeTab === 'tab-profile' && (
-          <div id="tab-panel-profile">
-            <SectionCard divided>
+                    <div className="text-[11px] text-neutral-400 mt-0.5 truncate">
+                      {t.description}
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0" />
+              </button>
+            );
+          })}
+        </SectionCard>
+          </>
+        ) : (
+          (() => {
+            const WindowIcon = currentWindowTabItem.icon;
+            const renderWindowBody = () => {
+              if (activeWindowTab === 'tab-profile') {
+                return (
+                  <div className="px-4 divide-y divide-black/[0.05]">
               {/* 数字头像（默认折叠为紧凑单行，点击按需展开 8 款网格） */}
               <div className="py-3.5">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-xs font-bold text-[#0f172a]">数字头像</div>
+                    <div className="text-xs font-bold text-[#141413]">数字头像</div>
                     <div className="text-[11px] text-neutral-400 mt-0.5">
                       点选预设图标，保存后全端同步
                     </div>
@@ -1241,7 +1260,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     type="button"
                     onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
                     aria-expanded={isAvatarPickerOpen}
-                    className="h-9 px-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200/70 text-[#0f172a] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition shrink-0"
+                    className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-[#141413] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition shrink-0"
                   >
                     <span className="text-base leading-none">{displayAvatarFallback}</span>
                     <span>{isAvatarPickerOpen ? '收起' : '更换'}</span>
@@ -1271,7 +1290,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                           className={`h-11 rounded-xl flex items-center justify-center text-xl transition cursor-pointer ${
                             isSelected
                               ? 'bg-emerald-50 ring-2 ring-emerald-600 shadow-xs'
-                              : 'bg-neutral-50 hover:bg-neutral-100 border border-black/[0.05]'
+                              : 'bg-[#f7f6f2] hover:bg-[#efede6] border border-black/[0.05]'
                           }`}
                         >
                           {icon}
@@ -1286,7 +1305,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
               <div className="py-3.5">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div>
-                    <label className="text-xs font-bold text-[#0f172a] block" htmlFor="nickname">
+                    <label className="text-xs font-bold text-[#141413] block" htmlFor="nickname">
                       公开昵称
                     </label>
                     <span className="text-[11px] text-neutral-400">展示在订单叫号与雷达卡片</span>
@@ -1302,7 +1321,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   maxLength={20}
                   onChange={(e) => setNickname(e.target.value)}
                   placeholder="输入您的称呼"
-                  className="w-full h-10 px-3 rounded-xl bg-neutral-50 border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#0f172a] transition tabular-nums placeholder:text-neutral-400"
+                  className="w-full h-10 px-3 rounded-xl bg-[#f7f6f2] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#141413] transition tabular-nums placeholder:text-neutral-400"
                 />
               </div>
 
@@ -1310,7 +1329,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
               <div className="py-3.5">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div>
-                    <label className="text-xs font-bold text-[#0f172a] block" htmlFor="bio">
+                    <label className="text-xs font-bold text-[#141413] block" htmlFor="bio">
                       个性签名
                     </label>
                     <span className="text-[11px] text-neutral-400">展示在商家备餐视图</span>
@@ -1330,7 +1349,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   maxLength={60}
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="写点什么介绍你的口味偏好..."
-                  className="w-full p-3 rounded-xl bg-neutral-50 border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs leading-relaxed text-[#0f172a] transition resize-none placeholder:text-neutral-400"
+                  className="w-full p-3 rounded-xl bg-[#f7f6f2] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs leading-relaxed text-[#141413] transition resize-none placeholder:text-neutral-400"
                 />
               </div>
 
@@ -1339,7 +1358,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-[#0f172a]">绑定手机号</span>
+                      <span className="text-xs font-bold text-[#141413]">绑定手机号</span>
                       {phone ? (
                         <span className="text-[11px] font-semibold text-emerald-700 inline-flex items-center gap-0.5">
                           <ShieldCheck className="w-3.5 h-3.5" />
@@ -1365,7 +1384,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       <button
                         type="button"
                         onClick={openBindPanel}
-                        className="h-9 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200/70 text-[#0f172a] text-xs font-bold transition cursor-pointer"
+                        className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-[#141413] text-xs font-bold transition cursor-pointer"
                       >
                         {phone ? '管理' : '去绑定'}
                       </button>
@@ -1374,11 +1393,11 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                 </div>
 
                 {isBindOpen && (
-                  <div className="mt-3 rounded-xl border border-black/[0.08] bg-neutral-50 p-3 space-y-2.5 animate-in fade-in">
+                  <div className="mt-3 rounded-xl border border-black/[0.08] bg-[#f7f6f2] p-3 space-y-2.5 animate-in fade-in">
                     {phone && (
                       <div className="space-y-2 pb-2.5 border-b border-black/[0.06]">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-[#0f172a]">
+                          <span className="text-xs font-bold text-[#141413]">
                             验证旧号 {phone.slice(0, 3)}****{phone.slice(-4)}
                           </span>
                           {oldPhoneVerified && (
@@ -1479,7 +1498,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         <button
                           type="button"
                           onClick={closeBindPanel}
-                          className="h-9 px-2 text-xs text-neutral-500 hover:text-[#0f172a] cursor-pointer shrink-0"
+                          className="h-9 px-2 text-xs text-neutral-500 hover:text-[#141413] cursor-pointer shrink-0"
                         >
                           取消
                         </button>
@@ -1510,10 +1529,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
               {/* 性别称谓 */}
               <div className="py-3.5 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <span className="text-xs font-bold text-[#0f172a] block">性别称谓</span>
+                  <span className="text-xs font-bold text-[#141413] block">性别称谓</span>
                   <span className="text-[11px] text-neutral-400">影响取餐叫号与称呼</span>
                 </div>
-                <div className="inline-flex rounded-xl bg-neutral-100 p-1 shrink-0">
+                <div className="inline-flex rounded-xl bg-[#f1efe9] p-1 shrink-0">
                   {[
                     { val: 'secret', label: '保密' },
                     { val: 'male', label: '先生' },
@@ -1525,8 +1544,8 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       onClick={() => setGender(item.val as 'secret' | 'male' | 'female')}
                       className={`h-8 px-3 rounded-lg text-xs font-bold cursor-pointer transition ${
                         gender === item.val
-                          ? 'bg-white text-[#0f172a] shadow-xs'
-                          : 'text-neutral-500 hover:text-[#0f172a]'
+                          ? 'bg-white text-[#141413] shadow-xs'
+                          : 'text-neutral-500 hover:text-[#141413]'
                       }`}
                     >
                       {item.label}
@@ -1538,7 +1557,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
               {/* 生日日期（通栏纵排对齐） */}
               <div className="py-3.5">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <label className="text-xs font-bold text-[#0f172a] block" htmlFor="birthday">
+                  <label className="text-xs font-bold text-[#141413] block" htmlFor="birthday">
                     生日日期
                   </label>
                   <span className="text-[11px] text-neutral-400">生日当月享专属甜品礼遇</span>
@@ -1548,17 +1567,16 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   type="date"
                   value={birthday}
                   onChange={(e) => setBirthday(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl bg-neutral-50 border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#0f172a] transition tabular-nums"
+                  className="w-full h-10 px-3 rounded-xl bg-[#f7f6f2] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#141413] transition tabular-nums"
                 />
               </div>
-            </SectionCard>
-          </div>
-        )}
+                  </div>
+                );
+              }
 
-        {/* ==================== TAB 2: 就餐偏好（收拢为 2 张卡：口味与偏好主卡 + 按需忌口备注卡） ==================== */}
-        {activeTab === 'tab-preference' && (
-          <div className="space-y-3" id="tab-panel-preference">
-            <SectionCard divided>
+              if (activeWindowTab === 'tab-preference') {
+                return (
+                  <div className="px-4 divide-y divide-black/[0.05]" id="tab-panel-preference">
               <div className="py-3.5">
                 <SectionHeader
                   title="默认辣度与下单偏好"
@@ -1567,16 +1585,16 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     <button
                       type="button"
                       onClick={handleResetToInitial}
-                      className="h-8 px-2.5 rounded-lg bg-neutral-100 hover:bg-neutral-200/70 text-[11px] font-bold text-neutral-600 inline-flex items-center gap-1 cursor-pointer transition"
+                      className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-[11px] font-bold text-neutral-700 inline-flex items-center gap-1 cursor-pointer transition"
                     >
                       <RotateCcw className="w-3 h-3" />
                       <span>恢复默认</span>
                     </button>
                   }
                 />
-                <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-neutral-100 mt-3">
+                <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-[#f1efe9] mt-3">
                   {[
-                    { id: 'none', label: '免辣', dot: 'bg-neutral-400', activeText: 'text-[#0f172a]' },
+                    { id: 'none', label: '免辣', dot: 'bg-neutral-400', activeText: 'text-[#141413]' },
                     { id: 'mild', label: '微辣', dot: 'bg-emerald-500', activeText: 'text-emerald-700' },
                     { id: 'medium', label: '中辣', dot: 'bg-amber-500', activeText: 'text-amber-700' },
                     { id: 'hot', label: '重辣', dot: 'bg-rose-500', activeText: 'text-rose-600' }
@@ -1590,7 +1608,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         className={`h-9 rounded-lg text-xs font-bold cursor-pointer transition flex items-center justify-center gap-1.5 ${
                           isSel
                             ? `bg-white ${item.activeText} shadow-xs ring-1 ring-black/[0.05]`
-                            : 'text-neutral-500 hover:text-[#0f172a]'
+                            : 'text-neutral-500 hover:text-[#141413]'
                         }`}
                       >
                         <span
@@ -1641,7 +1659,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         <Icon className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs font-bold text-[#0f172a] truncate">{row.title}</div>
+                        <div className="text-xs font-bold text-[#141413] truncate">{row.title}</div>
                         <div className="text-[11px] text-neutral-400 mt-0.5 truncate">{row.sub}</div>
                       </div>
                     </div>
@@ -1663,9 +1681,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   </div>
                 );
               })}
-            </SectionCard>
-
-            <SectionCard>
+              <div className="py-3.5">
               <SectionHeader
                 title="忌口与过敏备注"
                 subtitle="自定义后厨备注或展开常用预设快选"
@@ -1675,7 +1691,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setDietaryNotes('无特殊过敏原')}
-                        className="text-[11px] font-semibold text-neutral-500 hover:text-[#0f172a] underline underline-offset-2 cursor-pointer"
+                        className="text-[11px] font-semibold text-neutral-500 hover:text-[#141413] underline underline-offset-2 cursor-pointer"
                       >
                         清空
                       </button>
@@ -1684,7 +1700,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       type="button"
                       onClick={() => setIsDietaryPresetsOpen((prev) => !prev)}
                       aria-expanded={isDietaryPresetsOpen}
-                      className="h-7 px-2 rounded-lg bg-neutral-100 hover:bg-neutral-200/70 text-[11px] font-bold text-[#0f172a] inline-flex items-center gap-1 cursor-pointer transition"
+                      className="h-8 px-2.5 rounded-lg bg-[#f1efe9] hover:bg-neutral-200/80 text-[11px] font-bold text-[#141413] inline-flex items-center gap-1 cursor-pointer transition"
                     >
                       <span>常用忌口</span>
                       <ChevronDown
@@ -1710,7 +1726,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         className={`h-8 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition inline-flex items-center gap-1 ${
                           isIncluded
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-600/50'
-                            : 'bg-neutral-50 text-neutral-600 border border-black/[0.06] hover:bg-neutral-100'
+                            : 'bg-[#f7f6f2] text-neutral-600 border border-black/[0.06] hover:bg-[#efede6]'
                         }`}
                       >
                         {isIncluded && (
@@ -1729,19 +1745,20 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                 value={dietaryNotes}
                 onChange={(e) => setDietaryNotes(e.target.value)}
                 placeholder="输入其他过敏原或厨房备注..."
-                className="mt-3 w-full h-10 px-3 rounded-xl bg-neutral-50 border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#0f172a] transition placeholder:text-neutral-400"
+                className="mt-3 w-full h-10 px-3 rounded-xl bg-[#f7f6f2] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#141413] transition placeholder:text-neutral-400"
               />
-            </SectionCard>
-          </div>
-        )}
+              </div>
+                  </div>
+                );
+              }
 
-        {/* ==================== TAB 3: 常用地址（精简顶部搜索按需展开 + 示例快填收拢下拉） ==================== */}
-        {activeTab === 'tab-address' && (
-          <div className="space-y-3" id="tab-panel-address">
-            <SectionCard className="!p-3.5 space-y-2.5">
+              if (activeWindowTab === 'tab-address') {
+                return (
+                  <div className="divide-y divide-black/[0.06]" id="tab-panel-address">
+                    <div className="p-4 space-y-2.5">
               <SectionHeader
                 title={`常用地址 · ${addresses.length} 处`}
-                subtitle="支持标签筛选与一键切换默认送达"
+                subtitle="支持地址内自定义标签徽章与默认送达切换"
                 right={
                   <div className="flex items-center gap-1.5">
                     <button
@@ -1753,7 +1770,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       className={`w-9 h-9 rounded-xl border flex items-center justify-center cursor-pointer transition ${
                         isAddressSearchOpen || addressSearchQuery.trim()
                           ? 'bg-emerald-50 border-emerald-600/40 text-emerald-700'
-                          : 'bg-neutral-50 border-black/[0.06] text-neutral-600 hover:bg-neutral-100'
+                          : 'bg-[#f7f6f2] border-black/[0.06] text-neutral-600 hover:bg-[#efede6]'
                       }`}
                     >
                       <Search className="w-4 h-4" />
@@ -1764,9 +1781,11 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       onClick={() => {
                         setIsAddingAddress(true);
                         setEditingAddress(null);
+                        setEditingTagAddrId(null);
                         setIsPresetMenuOpen(false);
                         setAddrName(nickname);
                         setAddrPhone(phone);
+                        setAddrTag('公司');
                         setAddrLocation('');
                         setAddrHouseNumber('');
                         setAddrDetail('');
@@ -1774,7 +1793,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         setAddrLat(31.2435);
                         setAddrLng(121.469);
                       }}
-                      className="h-9 px-3 rounded-xl bg-[#0f172a] hover:bg-neutral-800 text-white text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
+                      className="h-9 px-3 rounded-xl bg-[#141413] hover:bg-neutral-800 text-white text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition whitespace-nowrap shrink-0"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>新增</span>
@@ -1790,8 +1809,8 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     type="text"
                     value={addressSearchQuery}
                     onChange={(e) => setAddressSearchQuery(e.target.value)}
-                    placeholder="搜索联系人、建筑或街道..."
-                    className="w-full h-9 pl-8 pr-8 rounded-xl bg-neutral-50 border border-black/[0.06] text-xs outline-none focus:bg-white focus:border-emerald-600 placeholder:text-neutral-400"
+                    placeholder="搜索徽章、联系人、建筑或街道..."
+                    className="w-full h-9 pl-8 pr-8 rounded-xl bg-[#f7f6f2] border border-black/[0.06] text-xs outline-none focus:bg-white focus:border-emerald-600 placeholder:text-neutral-400"
                   />
                   {addressSearchQuery && (
                     <button
@@ -1805,38 +1824,12 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   )}
                 </div>
               )}
-
-              <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-neutral-100">
-                {(
-                  [
-                    { key: 'all', label: '全部' },
-                    { key: '公司', label: '写字楼' },
-                    { key: '家', label: '住宅' },
-                    { key: '学校', label: '高校' },
-                    { key: '其他', label: '临时' }
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => setAddressTagFilter(item.key)}
-                    aria-pressed={addressTagFilter === item.key}
-                    className={`h-8 rounded-lg text-xs cursor-pointer transition ${
-                      addressTagFilter === item.key
-                        ? 'bg-white text-[#0f172a] font-bold shadow-xs'
-                        : 'text-neutral-500 font-semibold hover:text-[#0f172a]'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </SectionCard>
+                    </div>
 
             {(isAddingAddress || editingAddress) && (
-              <SectionCard className="!border-emerald-600/35 !shadow-[0_4px_16px_-6px_rgba(16,185,129,0.18)] space-y-3 animate-in fade-in">
+              <div className="p-4 bg-[#faf9f6] space-y-3 animate-in fade-in">
                 <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.06]">
-                  <span className="text-xs font-extrabold text-[#0f172a]">
+                  <span className="text-xs font-extrabold text-[#141413]">
                     {editingAddress ? '编辑送达地址' : '录入新地址'}
                   </span>
                   <div className="flex items-center gap-1.5">
@@ -1846,7 +1839,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         type="button"
                         onClick={() => setIsPresetMenuOpen((prev) => !prev)}
                         aria-expanded={isPresetMenuOpen}
-                        className="h-8 px-2.5 rounded-lg bg-neutral-100 hover:bg-neutral-200/70 text-[#0f172a] text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
+                        className="h-9 px-2.5 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-[#141413] text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
                       >
                         <Compass className="w-3 h-3 text-emerald-600" />
                         <span>示例快填</span>
@@ -1858,7 +1851,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       </button>
 
                       {isPresetMenuOpen && (
-                        <div className="absolute right-0 top-[calc(100%+6px)] w-60 rounded-xl bg-white border border-black/[0.08] shadow-[0_14px_30px_-8px_rgba(15,23,42,0.2)] p-1.5 z-30 space-y-0.5">
+                        <div className="absolute right-0 top-[calc(100%+6px)] w-60 rounded-xl bg-white border border-black/[0.08] shadow-[0_14px_30px_-8px_rgba(20,20,19,0.2)] p-1.5 z-30 space-y-0.5">
                           <button
                             type="button"
                             onClick={() => {
@@ -1869,10 +1862,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                           >
                             <Crosshair className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                             <div className="min-w-0">
-                              <div className="text-[11px] font-bold text-[#0f172a]">
+                              <div className="text-[11px] font-bold text-[#141413]">
                                 GPS 演示定位填充
                               </div>
-                              <div className="text-[10px] text-neutral-400">生成随机示例坐标</div>
+                              <div className="text-[11px] text-neutral-400">生成随机示例坐标</div>
                             </div>
                           </button>
                           <div className="my-1 border-t border-black/[0.06]" />
@@ -1884,17 +1877,17 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                                 handleApplyPreset(preset);
                                 setIsPresetMenuOpen(false);
                               }}
-                              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-neutral-50 text-left flex items-center justify-between gap-2 cursor-pointer transition"
+                              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[#f7f6f2] text-left flex items-center justify-between gap-2 cursor-pointer transition"
                             >
                               <div className="min-w-0">
-                                <div className="text-[11px] font-semibold text-[#0f172a] truncate">
+                                <div className="text-[11px] font-semibold text-[#141413] truncate">
                                   {preset.address}
                                 </div>
-                                <div className="text-[10px] text-neutral-400 truncate">
+                                <div className="text-[11px] text-neutral-400 truncate">
                                   {preset.detail}
                                 </div>
                               </div>
-                              <span className="text-[10px] text-neutral-400 shrink-0">
+                              <span className="text-[11px] text-neutral-400 shrink-0">
                                 {preset.tag}
                               </span>
                             </button>
@@ -1942,35 +1935,58 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   ))}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-neutral-600">地址标签</span>
-                    <div className="inline-flex gap-1 p-1 rounded-xl bg-neutral-100">
-                      {(['公司', '家', '学校', '其他'] as const).map((tag) => (
-                        <button
-                          key={tag}
-                          type="button"
-                          onClick={() => setAddrTag(tag)}
-                          className={`h-7 px-3 rounded-lg text-xs cursor-pointer transition ${
-                            addrTag === tag
-                              ? 'bg-white text-[#0f172a] font-bold shadow-xs'
-                              : 'text-neutral-500 font-semibold'
-                          }`}
-                        >
-                          {tag}
-                        </button>
-                      ))}
-                    </div>
+                <div className="space-y-2 pt-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-neutral-600 inline-flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-emerald-600" />
+                      标签徽章
+                    </span>
+                    {addrLat && addrLng && (
+                      <div className="text-[11px] text-neutral-400 flex items-center gap-1 tabular-nums">
+                        <Navigation className="w-3 h-3 text-emerald-600" />
+                        <span>
+                          {addrLat.toFixed(3)}°N, {addrLng.toFixed(3)}°E
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  {addrLat && addrLng && (
-                    <div className="text-[10px] text-neutral-400 flex items-center gap-1 tabular-nums">
-                      <Navigation className="w-3 h-3 text-emerald-600" />
-                      <span>
-                        {addrLat.toFixed(3)}°N, {addrLng.toFixed(3)}°E
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {ADDRESS_TAG_BADGE_PRESETS.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setAddrTag(tag)}
+                        aria-pressed={addrTag === tag}
+                        className={`h-8 px-2.5 rounded-lg text-[11px] cursor-pointer transition whitespace-nowrap shrink-0 border ${
+                          addrTag === tag
+                            ? 'bg-[#141413] text-white border-[#141413] font-bold shadow-xs'
+                            : 'bg-white text-neutral-600 border-black/[0.08] font-semibold hover:bg-[#f1efe9]'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={addrTag}
+                      maxLength={8}
+                      onChange={(e) => setAddrTag(e.target.value)}
+                      placeholder="或输入自定义徽章（最多8字，如：工作室）"
+                      className="flex-1 h-9 px-3 rounded-lg border border-black/[0.08] bg-white focus:border-emerald-600 text-xs outline-none placeholder:text-neutral-400"
+                    />
+                    <span
+                      className={`h-8 px-2.5 rounded-lg border text-[11px] font-bold inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${getAddressBadgeClassName(
+                        addrTag
+                      )}`}
+                    >
+                      <Tag className="w-3 h-3" />
+                      <span>{addrTag.trim() || '常用'}</span>
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-black/[0.06]">
@@ -1981,7 +1997,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       setEditingAddress(null);
                       setIsPresetMenuOpen(false);
                     }}
-                    className="h-9 px-4 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-bold cursor-pointer"
+                    className="h-9 px-4 rounded-xl bg-[#f1efe9] text-neutral-700 text-xs font-bold cursor-pointer"
                   >
                     取消
                   </button>
@@ -1994,42 +2010,60 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     确认写入草稿
                   </button>
                 </div>
-              </SectionCard>
+              </div>
             )}
 
-            <div className="space-y-2.5" id="address-list-container">
+            <div className="p-4 space-y-2.5" id="address-list-container">
               {filteredAddresses.map((addr) => {
                 const isDef = !!addr.isDefault;
                 const isConfirmingDelete = confirmDeleteAddrId === addr.id;
+                const isEditingBadge = editingTagAddrId === addr.id;
                 return (
                   <article
                     key={addr.id}
                     id={`address-card-${addr.id}`}
-                    className={`bg-white rounded-2xl p-4 border transition ${
+                    className={`rounded-2xl p-3.5 border transition ${
                       isDef
-                        ? 'border-emerald-600/40 shadow-[0_2px_12px_-6px_rgba(16,185,129,0.2)]'
-                        : 'border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.06)]'
+                        ? 'bg-emerald-50/30 border-emerald-600/40'
+                        : 'bg-[#faf9f6] border-black/[0.06]'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2 min-w-0">
                       <div className="flex items-start gap-2.5 min-w-0 flex-1">
                         <div
                           className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                            isDef ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-700'
+                            isDef ? 'bg-emerald-100/80 text-emerald-700' : 'bg-[#f1efe9] text-neutral-700'
                           }`}
                         >
                           <MapPin className="w-4 h-4" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs font-extrabold text-[#0f172a] truncate">
+                            <span className="text-xs font-extrabold text-[#141413] truncate">
                               {addr.address}
                             </span>
-                            <span className="text-[11px] font-semibold text-neutral-400">
-                              · {addr.tag}
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isEditingBadge) {
+                                  setEditingTagAddrId(null);
+                                  setInlineTagDraft('');
+                                } else {
+                                  setEditingTagAddrId(addr.id);
+                                  setInlineTagDraft(addr.tag || '');
+                                }
+                              }}
+                              aria-expanded={isEditingBadge}
+                              title="点击设置地址标签徽章"
+                              className={`h-7 px-2.5 rounded-lg border text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition whitespace-nowrap shrink-0 ${getAddressBadgeClassName(
+                                addr.tag
+                              )} ${isEditingBadge ? 'ring-2 ring-emerald-500/40' : ''}`}
+                            >
+                              <Tag className="w-3 h-3 shrink-0" />
+                              <span>{addr.tag || '设置徽章'}</span>
+                            </button>
                             {isDef && (
-                              <span className="text-[11px] font-bold text-emerald-700 inline-flex items-center gap-0.5">
+                              <span className="text-[11px] font-bold text-emerald-700 inline-flex items-center gap-0.5 whitespace-nowrap shrink-0">
                                 <Check className="w-3 h-3" strokeWidth={3} />
                                 默认
                               </span>
@@ -2043,7 +2077,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                             {addr.name} · {addr.phone}
                           </p>
                           {addr.remarks && (
-                            <p className="mt-1.5 px-2 py-1 rounded-lg bg-neutral-50 border border-black/[0.04] text-[11px] text-neutral-500 leading-snug">
+                            <p className="mt-1.5 px-2.5 py-1 rounded-lg bg-white border border-black/[0.05] text-[11px] text-neutral-500 leading-snug">
                               备注：{addr.remarks}
                             </p>
                           )}
@@ -2057,7 +2091,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                           onClick={() => handleSimulateRadarCheck(addr)}
                           title="雷达测距"
                           aria-label="雷达测距"
-                          className="w-8 h-8 rounded-lg hover:bg-neutral-100 text-neutral-500 flex items-center justify-center cursor-pointer transition"
+                          className="w-9 h-9 rounded-lg hover:bg-black/[0.05] text-neutral-500 flex items-center justify-center cursor-pointer transition"
                         >
                           <Crosshair className="w-3.5 h-3.5" />
                         </button>
@@ -2066,24 +2100,89 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                           onClick={() => handleCopyAddressInfo(addr)}
                           title="复制地址"
                           aria-label="复制地址"
-                          className="w-8 h-8 rounded-lg hover:bg-neutral-100 text-neutral-500 flex items-center justify-center cursor-pointer transition"
+                          className="w-9 h-9 rounded-lg hover:bg-black/[0.05] text-neutral-500 flex items-center justify-center cursor-pointer transition"
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
 
+                    {isEditingBadge && (
+                      <div className="mt-3 p-3 rounded-xl bg-white border border-black/[0.07] space-y-2.5 animate-in fade-in">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-extrabold text-[#141413] inline-flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-emerald-600" />
+                            设置当前地址标签徽章
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingTagAddrId(null);
+                              setInlineTagDraft('');
+                            }}
+                            className="text-[11px] font-semibold text-neutral-400 hover:text-neutral-700 cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            收起
+                          </button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5">
+                          {ADDRESS_TAG_BADGE_PRESETS.map((presetTag) => {
+                            const isSelected = addr.tag === presetTag;
+                            return (
+                              <button
+                                key={presetTag}
+                                type="button"
+                                onClick={() => handleApplyAddressTagBadge(addr.id, presetTag)}
+                                className={`h-8 px-2.5 rounded-lg border text-[11px] cursor-pointer transition whitespace-nowrap shrink-0 ${
+                                  isSelected
+                                    ? 'bg-[#141413] text-white border-[#141413] font-bold'
+                                    : 'bg-[#f7f6f2] text-neutral-700 border-black/[0.07] font-semibold hover:bg-[#efede6]'
+                                }`}
+                              >
+                                {presetTag}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={inlineTagDraft}
+                            maxLength={8}
+                            onChange={(e) => setInlineTagDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleApplyAddressTagBadge(addr.id, inlineTagDraft);
+                              }
+                            }}
+                            placeholder="自定义徽章名称（最多8字）"
+                            className="flex-1 min-w-0 h-9 px-2.5 rounded-lg bg-[#f7f6f2] border border-black/[0.08] focus:bg-white focus:border-emerald-600 text-xs outline-none placeholder:text-neutral-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleApplyAddressTagBadge(addr.id, inlineTagDraft)}
+                            className="h-9 px-3.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition whitespace-nowrap shrink-0"
+                          >
+                            应用
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-black/[0.05]">
                       {!isDef ? (
                         <button
                           type="button"
                           onClick={() => handleSetDefaultAddress(addr.id)}
-                          className="h-8 px-3 rounded-lg bg-neutral-100 hover:bg-neutral-200/70 text-neutral-700 text-[11px] font-bold cursor-pointer transition"
+                          className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-neutral-700 text-[11px] font-bold cursor-pointer transition whitespace-nowrap shrink-0"
                         >
                           设为默认
                         </button>
                       ) : (
-                        <span className="text-[11px] text-emerald-700 font-semibold">
+                        <span className="text-[11px] text-emerald-700 font-semibold whitespace-nowrap shrink-0">
                           当前优先送达
                         </span>
                       )}
@@ -2092,12 +2191,34 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         <button
                           type="button"
                           onClick={() => {
+                            if (isEditingBadge) {
+                              setEditingTagAddrId(null);
+                              setInlineTagDraft('');
+                            } else {
+                              setEditingTagAddrId(addr.id);
+                              setInlineTagDraft(addr.tag || '');
+                            }
+                          }}
+                          title="设置标签徽章"
+                          className={`h-9 px-2.5 rounded-xl text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition whitespace-nowrap shrink-0 ${
+                            isEditingBadge
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'hover:bg-black/[0.05] text-neutral-600'
+                          }`}
+                        >
+                          <Tag className="w-3.5 h-3.5" />
+                          <span>设徽章</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
                             setEditingAddress(addr);
                             setIsAddingAddress(false);
+                            setEditingTagAddrId(null);
                             setIsPresetMenuOpen(false);
                             setAddrName(addr.name);
                             setAddrPhone(addr.phone);
-                            setAddrTag(addr.tag);
+                            setAddrTag(addr.tag || '公司');
                             setAddrLocation(addr.address);
                             setAddrHouseNumber(addr.houseNumber || '');
                             setAddrDetail(addr.detail);
@@ -2107,7 +2228,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                           }}
                           title="编辑地址"
                           aria-label="编辑地址"
-                          className="h-8 px-2.5 rounded-lg hover:bg-neutral-100 text-neutral-600 text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition"
+                          className="h-9 px-2.5 rounded-xl hover:bg-black/[0.05] text-neutral-600 text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition whitespace-nowrap shrink-0"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                           <span>编辑</span>
@@ -2117,10 +2238,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                           onClick={() => handleDeleteAddress(addr.id)}
                           title={isConfirmingDelete ? '再次点击确认删除' : '删除地址'}
                           aria-label={isConfirmingDelete ? '确认删除地址' : '删除地址'}
-                          className={`h-8 rounded-lg flex items-center justify-center cursor-pointer transition ${
+                          className={`h-9 rounded-xl flex items-center justify-center cursor-pointer transition whitespace-nowrap shrink-0 ${
                             isConfirmingDelete
                               ? 'px-2.5 bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-bold'
-                              : 'w-8 hover:bg-rose-50 text-neutral-400 hover:text-rose-600'
+                              : 'w-9 hover:bg-rose-50 text-neutral-400 hover:text-rose-600'
                           }`}
                         >
                           {isConfirmingDelete ? '确认删除' : <Trash2 className="w-3.5 h-3.5" />}
@@ -2132,55 +2253,84 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
               })}
 
               {filteredAddresses.length === 0 && (
-                <SectionCard className="flex flex-col items-center py-10 text-center">
+                <div className="flex flex-col items-center py-10 text-center">
                   <MapPin className="w-7 h-7 text-neutral-300 mb-2" />
-                  <span className="text-xs text-neutral-600 font-bold">未匹配到符合条件的地址</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAddressSearchQuery('');
-                      setAddressTagFilter('all');
-                    }}
-                    className="mt-2.5 h-9 px-3.5 rounded-lg bg-neutral-100 text-xs text-emerald-700 font-bold cursor-pointer"
-                  >
-                    重置筛选条件
-                  </button>
-                </SectionCard>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ==================== TAB 4: 安全凭据（精简主视图 + 折叠技术明细） ==================== */}
-        {activeTab === 'tab-security' && (
-          <div className="space-y-3" id="tab-panel-security">
-            <SectionCard>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-                    <Lock className="w-4.5 h-4.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-extrabold text-[#0f172a] leading-snug">
-                      端到端设备签名已就绪
-                    </div>
-                    <div className="text-[11px] text-neutral-400 mt-0.5 truncate">
-                      已守护 {boundDeviceCount} 台设备 · 多端档案加密校验中
-                    </div>
-                  </div>
+                  <span className="text-xs text-neutral-600 font-bold">
+                    {addresses.length === 0 ? '暂无常用收货地址' : '未匹配到符合条件的地址'}
+                  </span>
+                  <span className="text-[11px] text-neutral-400 mt-1">
+                    {addresses.length === 0
+                      ? '添加常用写字楼、住宅或自提点，点单自动带入'
+                      : '可更换搜索关键词，或清空后查看全部地址'}
+                  </span>
+                  {addresses.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingAddress(true);
+                        setEditingAddress(null);
+                        setAddrName(nickname);
+                        setAddrPhone(phone);
+                        setAddrTag('公司');
+                        setAddrLocation('');
+                        setAddrHouseNumber('');
+                        setAddrDetail('');
+                        setAddrRemarks('');
+                        setAddrLat(31.2435);
+                        setAddrLng(121.469);
+                      }}
+                      className="mt-3 h-9 px-4 rounded-xl bg-[#141413] hover:bg-neutral-800 text-xs text-white font-bold inline-flex items-center gap-1.5 cursor-pointer transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>立即新增地址</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddressSearchQuery('');
+                      }}
+                      className="mt-2.5 h-9 px-3.5 rounded-xl bg-[#f1efe9] text-xs text-emerald-700 font-bold cursor-pointer"
+                    >
+                      清空搜索条件
+                    </button>
+                  )}
                 </div>
-                <span className="text-[11px] font-bold text-emerald-700 inline-flex items-center gap-1 shrink-0">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  正常
-                </span>
-              </div>
-            </SectionCard>
+              )}
+                    </div>
+                  </div>
+                );
+              }
 
-            <SectionCard divided>
-              <div className="py-3.5 flex items-center justify-between gap-4">
+              if (activeWindowTab === 'tab-security') {
+                return (
+                  <div className="px-4 divide-y divide-black/[0.05]" id="tab-panel-security">
+                    <div className="py-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                            <Lock className="w-4.5 h-4.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-extrabold text-[#141413] leading-snug">
+                              端到端设备签名已就绪
+                            </div>
+                            <div className="text-[11px] text-neutral-400 mt-0.5 truncate">
+                              已守护 {boundDeviceCount} 台设备 · 多端档案加密校验中
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-bold text-emerald-700 inline-flex items-center gap-1 shrink-0">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          正常
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="py-3.5 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <Smartphone className="w-4 h-4 text-neutral-400" />
-                  <span className="text-xs font-bold text-[#0f172a]">受信任绑定设备</span>
+                  <span className="text-xs font-bold text-[#141413]">受信任绑定设备</span>
                 </div>
                 <span className="text-xs font-semibold text-neutral-600 tabular-nums">
                   {boundDeviceCount} 台设备在线
@@ -2189,7 +2339,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
 
               <div className="py-3.5 flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-[#0f172a] flex items-center gap-1.5">
+                  <div className="text-xs font-bold text-[#141413] flex items-center gap-1.5">
                     <KeyRound className="w-3.5 h-3.5 text-neutral-500" />
                     <span>重新签发凭证</span>
                   </div>
@@ -2201,18 +2351,18 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   type="button"
                   id="reissue-key-btn"
                   onClick={handleReissueKey}
-                  className="h-9 px-3.5 shrink-0 rounded-xl bg-neutral-100 hover:bg-neutral-200/70 text-xs font-bold text-[#0f172a] cursor-pointer transition"
+                  className="h-9 px-3.5 shrink-0 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-xs font-bold text-[#141413] cursor-pointer transition"
                 >
                   重新签发
                 </button>
               </div>
 
-              <div className="py-3">
+              <div className="py-3.5">
                 <button
                   type="button"
                   onClick={() => setIsTechDetailsOpen((prev) => !prev)}
                   aria-expanded={isTechDetailsOpen}
-                  className="w-full flex items-center justify-between text-[11px] font-semibold text-neutral-500 hover:text-[#0f172a] cursor-pointer transition py-0.5"
+                  className="w-full flex items-center justify-between text-[11px] font-semibold text-neutral-500 hover:text-[#141413] cursor-pointer transition py-0.5"
                 >
                   <span>查看技术凭据详情</span>
                   <ChevronDown
@@ -2248,7 +2398,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                             toast.info('复制成功', '硬件签名令牌已复制到剪贴板');
                           }}
                           aria-label="复制硬件令牌"
-                          className="w-7 h-7 rounded-lg text-neutral-400 hover:text-[#0f172a] hover:bg-neutral-100 flex items-center justify-center cursor-pointer shrink-0"
+                          className="w-8 h-8 rounded-lg text-neutral-400 hover:text-[#141413] hover:bg-[#f1efe9] flex items-center justify-center cursor-pointer shrink-0"
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </button>
@@ -2266,25 +2416,95 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   </div>
                 )}
               </div>
-            </SectionCard>
-          </div>
-        )}
+                  </div>
+                );
+              }
 
-        {/* ==================== TAB 5: 财务对账（去重资产卡，聚焦单卡流水明细） ==================== */}
-        {activeTab === 'tab-finance' && (
-          <div id="tab-panel-finance">
-            <SectionCard>
-              <SectionHeader
-                title="账单明细"
-                subtitle="关联订单、储值充值与会员返现记录"
-                right={
-                  <span className="text-[11px] text-neutral-400 tabular-nums">
-                    共 {filteredTransactions.length} 笔
-                  </span>
-                }
-              />
+              return (
+                <div className="divide-y divide-black/[0.06]" id="tab-panel-finance">
+                  {/* 储值余额与在线充值 */}
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold text-neutral-400">可用储值余额</div>
+                        <div className="text-2xl font-black text-[#141413] tracking-tight tabular-nums mt-0.5">
+                          ¥{balance.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[11px] font-bold text-emerald-700">充 ¥1 = +1 成长积分</div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5 tabular-nums">
+                          当前 {points.toLocaleString()} 分
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-neutral-100 my-3">
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {RECHARGE_TIERS.map((tier) => {
+                        const isSelected = selectedRechargeAmount === tier.amount;
+                        return (
+                          <button
+                            key={tier.amount}
+                            type="button"
+                            onClick={() => setSelectedRechargeAmount(tier.amount)}
+                            aria-pressed={isSelected}
+                            className={`rounded-xl py-2.5 px-1 text-center border transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#141413] border-[#141413] text-white shadow-xs'
+                                : 'bg-[#f7f6f2] border-black/[0.06] text-[#141413] hover:bg-[#efede6]'
+                            }`}
+                          >
+                            <div className="text-xs font-extrabold tabular-nums">¥{tier.amount}</div>
+                            <div
+                              className={`text-[11px] font-semibold mt-0.5 ${
+                                isSelected
+                                  ? tier.bonus > 0
+                                    ? 'text-emerald-300'
+                                    : 'text-neutral-300'
+                                  : tier.bonus > 0
+                                    ? 'text-emerald-700'
+                                    : 'text-neutral-400'
+                              }`}
+                            >
+                              {tier.label}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isRecharging}
+                      onClick={handleConfirmRecharge}
+                      className="w-full h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-[0.99]"
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>
+                        {isRecharging
+                          ? '正在充值入账...'
+                          : (() => {
+                              const picked = RECHARGE_TIERS.find((t) => t.amount === selectedRechargeAmount);
+                              return picked && picked.bonus > 0
+                                ? `立即储值 ¥${picked.amount}（实得 ¥${picked.amount + picked.bonus}）`
+                                : `立即储值 ¥${selectedRechargeAmount}`;
+                            })()}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="p-4">
+                    <SectionHeader
+                      title="账单明细"
+                      subtitle="关联订单、储值充值与会员返现记录"
+                      right={
+                        <span className="text-[11px] text-neutral-400 tabular-nums">
+                          共 {filteredTransactions.length} 笔
+                        </span>
+                      }
+                    />
+
+              <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-[#f1efe9] my-3">
                 {[
                   { key: 'all', label: '全部' },
                   { key: 'recharge', label: '充值' },
@@ -2298,10 +2518,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       setFinanceFilter(f.key as 'all' | 'recharge' | 'expense' | 'reward')
                     }
                     aria-pressed={financeFilter === f.key}
-                    className={`h-8 rounded-lg text-xs cursor-pointer transition ${
+                    className={`h-9 rounded-lg text-xs cursor-pointer transition ${
                       financeFilter === f.key
-                        ? 'bg-white text-[#0f172a] font-bold shadow-xs'
-                        : 'text-neutral-500 font-semibold hover:text-[#0f172a]'
+                        ? 'bg-white text-[#141413] font-bold shadow-xs'
+                        : 'text-neutral-500 font-semibold hover:text-[#141413]'
                     }`}
                   >
                     {f.label}
@@ -2332,13 +2552,13 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                                 ? 'bg-emerald-50 text-emerald-700'
                                 : item.type === 'reward'
                                   ? 'bg-amber-50 text-amber-700'
-                                  : 'bg-neutral-100 text-neutral-700'
+                                  : 'bg-[#f1efe9] text-neutral-700'
                             }`}
                           >
                             <Icon className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <div className="text-xs font-bold text-[#0f172a] truncate">
+                            <div className="text-xs font-bold text-[#141413] truncate">
                               {item.title}
                             </div>
                             <div className="text-[11px] text-neutral-400 mt-0.5 tabular-nums truncate">
@@ -2349,12 +2569,12 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         <div className="text-right shrink-0">
                           <div
                             className={`text-sm font-extrabold tabular-nums leading-tight ${
-                              isPositive ? 'text-emerald-700' : 'text-[#0f172a]'
+                              isPositive ? 'text-emerald-700' : 'text-[#141413]'
                             }`}
                           >
                             {formattedAmount}
                           </div>
-                          <div className="text-[10px] text-neutral-400 tabular-nums mt-0.5">
+                          <div className="text-[11px] text-neutral-400 tabular-nums mt-0.5">
                             结余 ¥{item.balanceAfter.toFixed(2)}
                           </div>
                         </div>
@@ -2368,15 +2588,94 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   <span className="text-xs font-semibold text-neutral-500">当前筛选下暂无流水</span>
                 </div>
               )}
-            </SectionCard>
-          </div>
+                  </div>
+                </div>
+              );
+            };
+
+            return (
+              <div
+                data-purpose="embedded-window"
+                className="w-full bg-white rounded-2xl border border-black/[0.08] shadow-[0_6px_24px_-10px_rgba(20,20,19,0.12)] overflow-hidden animate-in fade-in"
+              >
+                <div className="bg-[#faf9f6] px-4 py-3 border-b border-black/[0.06] flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-8 h-8 rounded-xl bg-[#141413] text-emerald-400 flex items-center justify-center shrink-0">
+                      <WindowIcon className="w-4 h-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="text-[13px] font-extrabold text-[#141413] truncate">
+                          {currentWindowTabItem.label}
+                        </h3>
+                        {currentWindowTabItem.isDirty && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold leading-none shrink-0">
+                            未保存
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-neutral-400 truncate">
+                        {currentWindowTabItem.description}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveWindowTab(null)}
+                    aria-label="关闭内嵌窗口"
+                    className="h-9 px-3 rounded-xl bg-white border border-black/[0.08] hover:bg-[#f1efe9] text-neutral-700 text-[11px] font-bold inline-flex items-center gap-1 transition cursor-pointer shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>返回</span>
+                  </button>
+                </div>
+
+                <div className="bg-white">{renderWindowBody()}</div>
+
+                <div className="bg-[#faf9f6] px-4 py-3 border-t border-black/[0.06] flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-neutral-400 truncate">
+                    {hasUnsavedChanges ? '存在未保存修改' : `参数已同步 · ${lastSyncTime}`}
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {hasUnsavedChanges && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleDiscardChanges}
+                          disabled={isSyncing}
+                          className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-neutral-700 text-xs font-bold cursor-pointer transition disabled:opacity-50"
+                        >
+                          还原
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveAndSync}
+                          disabled={isSyncing}
+                          className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer transition active:scale-95 disabled:opacity-60"
+                        >
+                          {isSyncing ? '保存中...' : '保存更改'}
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setActiveWindowTab(null)}
+                      className="h-9 px-3.5 rounded-xl bg-[#141413] hover:bg-neutral-800 text-white text-xs font-bold cursor-pointer transition"
+                    >
+                      {hasUnsavedChanges ? '返回列表' : '完成'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
         )}
       </div>
 
-      {/* 脏状态驱动的底部悬浮保存条：仅在存在未保存修改时亮起 */}
-      {hasUnsavedChanges && (
+      {/* 脏状态驱动的底部悬浮保存条：仅在列表页且存在未保存修改时亮起 */}
+      {!currentWindowTabItem && hasUnsavedChanges && (
         <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[calc(100%-28px)] max-w-[402px] z-40 animate-in slide-in-from-bottom">
-          <div className="h-[54px] px-3 rounded-2xl bg-[#0f172a] text-white shadow-[0_14px_34px_-10px_rgba(15,23,42,0.5)] ring-1 ring-white/10 flex items-center justify-between gap-2">
+          <div className="h-[54px] px-3 rounded-2xl bg-[#141413] text-white shadow-[0_14px_34px_-10px_rgba(20,20,19,0.5)] ring-1 ring-white/10 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0 pl-1">
               <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
               <span className="text-xs font-bold truncate">
@@ -2398,7 +2697,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                 type="button"
                 onClick={handleSaveAndSync}
                 disabled={isSyncing}
-                className="h-9 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#0f172a] text-xs font-black cursor-pointer transition active:scale-95 disabled:opacity-60"
+                className="h-9 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#141413] text-xs font-black cursor-pointer transition active:scale-95 disabled:opacity-60"
               >
                 {isSyncing ? '保存中...' : '保存更改'}
               </button>

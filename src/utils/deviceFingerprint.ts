@@ -3,6 +3,8 @@
  * 字段形状与原实现保持一致，UserAuthModal 的展示逻辑无需改动。
  */
 export interface DeviceHardwareDetails {
+  hardwareHash?: string;
+  gpuRenderer?: string;
   canvasHash: string;
   webglVendor: string;
   webglRenderer: string;
@@ -33,6 +35,8 @@ export async function collectDeviceHardwareDetails(): Promise<DeviceHardwareDeta
   const scr = typeof screen !== 'undefined' ? screen : ({ width: 430, height: 932, colorDepth: 24 } as Screen);
   const seed = `${scr.width}x${scr.height}|${nav.platform || 'demo'}|${nav.language || 'zh-CN'}`;
   return {
+    hardwareHash: getDemoDeviceHash(),
+    gpuRenderer: 'Demo Renderer',
     canvasHash: fake(seed + '|canvas'),
     webglVendor: 'Demo Vendor',
     webglRenderer: 'Demo Renderer',
