@@ -1,0 +1,27 @@
+{
+  "name": "urban-radar-member-center",
+  "private": true,
+  "version": "1.0.0",
+  "description": "UrbanRadar 食客端「我的 / 会员特权与黑卡中心」与「资料设置 / 会员资料与参数控制台」两个界面的独立运行工程",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^0.546.0",
+    "motion": "^13.1.1",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^5.0.4",
+    "tailwindcss": "^4.1.14",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3"
+  }
+}
