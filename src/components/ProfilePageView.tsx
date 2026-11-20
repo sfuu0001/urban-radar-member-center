@@ -1,6 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
 import {
-  Bell,
   Zap,
   Truck,
   Headset,
@@ -16,12 +15,10 @@ import {
   X,
   Ticket,
   Cloud,
-  Edit3,
   KeyRound,
   UserCheck,
   QrCode,
-  RotateCw,
-  ArrowLeft
+  RotateCw
 } from 'lucide-react';
 import { UserCouponsModal } from './UserCouponsModal';
 import { UserProfileEditView } from './user/UserProfileEditView';
@@ -36,12 +33,14 @@ import { ACTIVE_BUILD_VERSION, manualForceCloudPurgeAndReload } from '../utils/v
 import { purgeUserSessionAndLogout } from '../utils/cloudUserSync';
 import { OrganicCardReveal } from '../utils/useCardScrollReveal';
 import { DeviceIdentityCard } from './DeviceIdentityCard';
-import { TCB_CLOUD_ENABLED } from '../utils/cloudbase';
+import { TCB_CLOUD_ENABLED, syncUserProfileToCloud } from '../utils/cloudbase';
+import { UnifiedPageHeader } from './ui/UnifiedPageHeader';
 
 interface ProfilePageViewProps {
   onOpenRadar?: () => void;
   onOpenVIP?: () => void;
   onOpenAddress?: () => void;
+  onOpenEditTab?: (tab: 'profile' | 'addresses' | 'preferences' | 'wallet' | 'security' | 'finance') => void;
   onGoToMenu?: () => void;
   onOpenCoupons?: () => void;
   onOpenCloudSync?: () => void;
@@ -57,6 +56,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
   onOpenRadar,
   onOpenVIP,
   onOpenAddress,
+  onOpenEditTab,
   onGoToMenu,
   onOpenCoupons,
   onOpenCloudSync,
@@ -76,11 +76,30 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
   const [authModalMode, setAuthModalMode] = useState<'sms' | 'password' | 'register' | 'auto' | 'presets' | 'login'>('sms');
   const [isSignedOut, setIsSignedOut] = useState(false);
   const [isCardFlipped, setIsCardFlipped] = useState(false);
+  const [avatarImgError, setAvatarImgError] = useState(false);
+
+  React.useEffect(() => {
+    setAvatarImgError(false);
+  }, [userProfile.avatar]);
+
+  const navigateToEditTab = (tab: 'profile' | 'addresses' | 'preferences' | 'wallet' | 'security' | 'finance') => {
+    if (onOpenEditTab) {
+      onOpenEditTab(tab);
+      return;
+    }
+    if (tab === 'addresses' || tab === 'preferences' || tab === 'wallet' || tab === 'profile') {
+      setProfileEditTab(tab);
+    } else {
+      setProfileEditTab('profile');
+    }
+    setIsProfileEditOpen(true);
+  };
 
   // Notification toggle state
   const [isNotificationOn, setIsNotificationOn] = useState<boolean>(() =>
     safeGetStorage<boolean>('obsidian_member_notification_on', true)
   );
+  const [isHeaderRefreshing, setIsHeaderRefreshing] = useState(false);
 
   const toggleMemberNotification = () => {
     setIsNotificationOn((prev) => {
@@ -89,6 +108,22 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
       showToast(next ? '会员通知已开启：订单与黑卡特权动态将实时提醒' : '会员通知已关闭：将不再接收实时推送');
       return next;
     });
+  };
+
+  const handleHeaderRefresh = async () => {
+    if (isHeaderRefreshing) return;
+    setIsHeaderRefreshing(true);
+    try {
+      const res = await syncUserProfileToCloud(userProfile);
+      if (onProfileUpdated && res?.profile) {
+        onProfileUpdated(res.profile);
+      }
+      toast.success('会员状态已刷新', '会员档案、积分与卡券数据已同步');
+    } catch {
+      toast.info('本地档案已校验', '当前为本地演示模式，会员数据已刷新');
+    } finally {
+      setTimeout(() => setIsHeaderRefreshing(false), 350);
+    }
   };
 
   const { isAdminDeveloper, openDevControlCenter, openDevAuthModal } = useDevSimulation();
@@ -224,81 +259,78 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
     );
   }
 
+  const isAvatarUrl = Boolean(
+    userProfile.avatar &&
+      !isSignedOut &&
+      /^(https?:|\/|data:)/.test(userProfile.avatar) &&
+      !avatarImgError
+  );
+  const avatarFallbackText =
+    !isSignedOut && userProfile.avatar && !/^(https?:|\/|data:)/.test(userProfile.avatar)
+      ? userProfile.avatar
+      : isSignedOut
+        ? '访'
+        : (userProfile.nickname || 'U').trim().slice(0, 1).toUpperCase();
+
   return (
-    <div className="w-full min-h-screen bg-[#f6f6f4] text-[#1a1a17] pb-10 select-none font-sans">
-      {/* Main Container - 全屏响应式展开，底部导航栏常驻 */}
-      <div className="w-full max-w-5xl mx-auto min-h-screen px-3.5 sm:px-6 pt-4 pb-28 flex flex-col gap-5">
-        {/* BEGIN: HeaderSection */}
-        <header className="flex flex-col gap-2.5" data-purpose="page-header">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              id="profile-header-back-btn"
-              onClick={() => {
-                if (onGoToMenu) {
-                  onGoToMenu();
-                } else if (typeof window !== 'undefined' && window.history.length > 1) {
-                  window.history.back();
-                }
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] rounded-lg text-xs font-bold tracking-wide text-brand-dark shadow-[0_1px_2px_rgba(17,24,39,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] hover:bg-white/90 active:scale-95 transition flex-shrink-0 cursor-pointer group"
-              aria-label="返回点餐"
-              title="返回点餐"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 text-neutral-800 transition-transform group-hover:-translate-x-0.5" />
-              <span className="text-xs font-bold">返回点餐</span>
-            </button>
+    <div className="w-full min-h-screen bg-[#f5f5f3] text-[#0f172a] pb-10 select-none font-sans">
+      {/* BEGIN: Unified HeaderSection */}
+      <UnifiedPageHeader
+        title="会员中心"
+        onBack={onGoToMenu}
+        backLabel="返回点餐"
+        statusTone={isGuestIdentity ? 'offline' : 'online'}
+        statusTitle={
+          isGuestIdentity
+            ? '访客模式（未登录）'
+            : TCB_CLOUD_ENABLED
+              ? '云端会员服务在线'
+              : '会员服务就绪'
+        }
+        primaryActive={!isGuestIdentity}
+        onPrimaryClick={() => {
+          if (onOpenRadar) {
+            onOpenRadar();
+          } else {
+            navigateToEditTab('profile');
+          }
+        }}
+        primaryTitle={onOpenRadar ? '餐车雷达追踪' : '资料设置与参数控制台'}
+        isRefreshing={isHeaderRefreshing}
+        onRefreshClick={handleHeaderRefresh}
+        refreshTitle="刷新会员档案与权益"
+        notificationOn={isNotificationOn}
+        onNotificationClick={toggleMemberNotification}
+      />
+      {/* END: Unified HeaderSection */}
 
-            <div className="flex-1 min-w-0 flex items-center justify-center px-1">
-              <span className="text-sm font-extrabold text-neutral-900 tracking-tight">会员特权与黑卡中心</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileEditTab('profile');
-                  setIsProfileEditOpen(true);
-                }}
-                className="inline-flex items-center gap-1 px-2 py-1.5 bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] rounded-full text-xs font-bold text-neutral-700 shadow-[0_1px_2px_rgba(17,24,39,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] active:scale-95 transition cursor-pointer hover:bg-white/90"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-brand-emerald" />
-                <span>资料设置</span>
-              </button>
-
-              <button
-                type="button"
-                aria-label="通知"
-                onClick={toggleMemberNotification}
-                className="w-7 h-7 rounded-full bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] flex items-center justify-center text-neutral-600 shadow-[0_1px_2px_rgba(17,24,39,0.05)] relative active:scale-95 transition flex-shrink-0 cursor-pointer hover:bg-white/90"
-                title={isNotificationOn ? '通知已开启（点击关闭）' : '通知已关闭（点击开启）'}
-              >
-                <Bell className={`w-3.5 h-3.5 ${isNotificationOn ? 'text-neutral-800' : 'text-neutral-400'}`} />
-                {isNotificationOn && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-brand-emerald rounded-full" />}
-              </button>
-            </div>
-          </div>
-        </header>
-        {/* END: HeaderSection */}
+      {/* Main Container */}
+      <div className="w-full max-w-5xl mx-auto min-h-screen px-3.5 sm:px-6 pt-3.5 pb-16 flex flex-col gap-3.5">
 
         {/* BEGIN: UserProfileBar */}
         <OrganicCardReveal className="w-full">
-          <section className="bg-white/72 backdrop-blur-xl rounded-2xl p-3 ring-1 ring-black/[0.07] shadow-[0_12px_32px_-16px_rgba(17,24,39,0.3),inset_0_1px_0_rgba(255,255,255,0.85)] flex items-center justify-between" data-purpose="user-profile-summary">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <section className="bg-white rounded-2xl p-3.5 border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.08)] flex items-center justify-between gap-2.5" data-purpose="user-profile-summary">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Avatar with verified check badge */}
             <div className="relative flex-shrink-0">
-              <div className="w-11 h-11 rounded-full overflow-hidden border border-neutral-200 bg-neutral-100 flex items-center justify-center">
-                {userProfile.avatar && !isSignedOut ? (
-                  <img /* 性能手术：非首屏图片懒加载 */ loading="lazy" decoding="async"
+              <div className="w-12 h-12 rounded-full overflow-hidden border border-black/[0.07] bg-neutral-100 flex items-center justify-center">
+                {isAvatarUrl ? (
+                  <img
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
                     src={userProfile.avatar}
                     alt={userProfile.nickname}
+                    onError={() => setAvatarImgError(true)}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <User className="w-6 h-6 text-neutral-400" />
+                  <span className="text-xl font-bold text-neutral-700 leading-none">
+                    {avatarFallbackText}
+                  </span>
                 )}
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-brand-emerald rounded-full flex items-center justify-center text-white ring-2 ring-white">
+              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-white ring-2 ring-white">
                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
                 </svg>
@@ -307,26 +339,28 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
 
             {/* User Meta Info */}
             <div className="flex flex-col leading-tight min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-bold text-neutral-900 tracking-tight truncate">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-sm font-extrabold text-[#0f172a] tracking-tight truncate">
                   {isSignedOut ? '访客食客 (未登录)' : userProfile.nickname || '黑曜石先锋食客 #7F72E5'}
                 </span>
-                <span className="text-[10px] whitespace-nowrap shrink-0 bg-black/[0.05] text-neutral-500 font-medium px-1.5 py-0.2 rounded ring-1 ring-black/[0.05]">
-                  UID: {isGuestIdentity ? 'GUEST' : uidTail4}
+                <span className="text-[11px] whitespace-nowrap shrink-0 text-neutral-400 font-medium tabular-nums">
+                  · UID {isGuestIdentity ? 'GUEST' : uidTail4}
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-[11px] text-neutral-500 mt-1 min-w-0">
-                <span className="font-medium whitespace-nowrap">{isSignedOut ? '未绑定手机号' : userProfile.phone || '138-0000-6357'}</span>
+              <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 mt-1 min-w-0">
+                <span className="font-medium whitespace-nowrap tabular-nums">
+                  {isSignedOut ? '未绑定手机号' : userProfile.phone || '138-0000-6357'}
+                </span>
                 <span className="text-neutral-300 shrink-0">·</span>
                 {TCB_CLOUD_ENABLED ? (
-                  <span className="inline-flex items-center gap-0.5 text-brand-emerald font-medium min-w-0">
+                  <span className="inline-flex items-center gap-0.5 text-emerald-700 font-medium min-w-0">
                     <Cloud className="w-3 h-3 shrink-0" />
-                    <span className="truncate">云函数已打通</span>
+                    <span className="truncate">云端已同步</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-0.5 text-neutral-400 font-medium min-w-0">
                     <Cloud className="w-3 h-3 shrink-0" />
-                    <span className="truncate">本地演示模式 · 未连接云端</span>
+                    <span className="truncate">本地演示模式</span>
                   </span>
                 )}
               </div>
@@ -334,19 +368,19 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
           </div>
 
           {/* Right Balance and Switch */}
-          <div className="flex items-center gap-2 pl-2 flex-shrink-0">
+          <div className="flex items-center gap-2.5 pl-2.5 border-l border-black/[0.06] flex-shrink-0">
             <div className="text-right">
-              <div className="text-sm font-extrabold text-neutral-900 leading-none">
+              <div className="text-base font-black text-[#0f172a] leading-none tabular-nums">
                 ¥{isSignedOut ? '0.00' : userProfile.balance.toFixed(2)}
               </div>
-              <div className="text-[10px] text-neutral-400 mt-0.5">账户余额</div>
+              <div className="text-[10px] text-neutral-400 mt-1">账户余额</div>
             </div>
             <button
               type="button"
               onClick={() => handleOpenAuth('presets')}
-              className="inline-flex items-center gap-0.5 px-2 py-1.5 bg-black/[0.05] hover:bg-black/[0.09] ring-1 ring-black/[0.07] rounded-md text-neutral-700 text-xs font-semibold tracking-tight transition active:scale-95 cursor-pointer"
+              className="h-9 inline-flex items-center gap-1 px-2.5 bg-neutral-100 hover:bg-neutral-200/70 rounded-xl text-[#0f172a] text-xs font-bold tracking-tight transition active:scale-95 cursor-pointer"
             >
-              <UserCheck className="w-3.5 h-3.5 text-brand-emerald" />
+              <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span>换号</span>
             </button>
           </div>
@@ -399,9 +433,13 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                     <span className="text-[9px] tracking-widest text-amber-300/90 uppercase font-semibold leading-tight">
                       STATUS
                     </span>
-                    <span className="text-[11px] font-bold text-white tracking-tight flex items-center gap-1 leading-tight">
+                    <span className="text-[11px] font-bold text-white tracking-tight flex items-center gap-1.5 leading-tight">
                       {isSignedOut ? 'GUEST' : 'ACTIVE'}
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-emeraldLight animate-pulse" />
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          isSignedOut ? 'bg-neutral-400' : 'bg-emerald-400'
+                        }`}
+                      />
                     </span>
                   </div>
                 </div>
@@ -409,7 +447,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                 <button
                   type="button"
                   onClick={(e) => toggleCardFlip(e)}
-                  className="flip-trigger inline-flex items-center gap-1 text-[11px] font-medium text-neutral-300 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 px-2 py-1 rounded-md transition active:scale-95 cursor-pointer"
+                  className="flip-trigger inline-flex items-center gap-1 text-[11px] font-medium text-neutral-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 px-2.5 py-1 rounded-lg transition active:scale-95 cursor-pointer"
                 >
                   <RotateCw className="w-3 h-3 text-amber-300" />
                   <span className="leading-none">点击翻面</span>
@@ -422,7 +460,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                   <h2 className="text-xl font-extrabold tracking-wider text-white uppercase font-sans">
                     VIP ELITE
                   </h2>
-                  <Sparkles className="w-4 h-4 text-brand-emeraldLight flex-shrink-0" />
+                  <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                 </div>
 
                 <div className="mt-1.5 w-full max-w-[260px] bg-neutral-950/90 border border-neutral-700/80 rounded px-2.5 py-1.5 flex flex-col items-center justify-center">
@@ -448,7 +486,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                     <div className="w-[4px] h-full bg-white" />
                     <div className="w-[2px] h-full bg-white" />
                   </div>
-                  <span className="mt-1 text-[10px] tracking-widest text-neutral-300 font-bold leading-none">
+                  <span className="mt-1 text-[10px] tracking-widest text-neutral-300 font-bold leading-none tabular-nums">
                     VIP · {uidTail4} · E500 · 8892
                   </span>
                 </div>
@@ -458,13 +496,13 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
               <div className="relative z-10 pt-1">
                 <div className="flex justify-between items-end text-[10px] tracking-tight text-neutral-400 mb-1">
                   <span className="uppercase font-semibold">POINTS TO NEXT TIER</span>
-                  <span className="text-neutral-300 font-medium">
+                  <span className="text-neutral-300 font-medium tabular-nums">
                     <strong className="text-white font-bold">{isSignedOut ? 0 : userProfile.points || 1000}</strong> / 5,000
                   </span>
                 </div>
                 <div className="w-full bg-neutral-800 rounded-full h-1.5 overflow-hidden p-[1px]">
                   <div
-                    className="bg-gradient-to-r from-brand-emerald to-emerald-300 h-full rounded-full transition duration-700"
+                    className="bg-gradient-to-r from-emerald-500 to-emerald-300 h-full rounded-full transition duration-700"
                     style={{
                       width: isSignedOut ? '0%' : `${Math.min(100, ((userProfile.points || 1000) / 5000) * 100)}%`
                     }}
@@ -513,7 +551,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                   </div>
                   <div className="text-[11px] text-neutral-300 flex flex-col gap-0.5">
                     <span className="font-medium text-white">尊享黑卡权益保障</span>
-                    <span className="text-[10px] text-brand-emeraldLight">全单9折 · 极速出餐免排队</span>
+                    <span className="text-[10px] text-emerald-400">全单9折 · 极速出餐免排队</span>
                   </div>
                 </div>
 
@@ -524,9 +562,9 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
 
               <div className="pt-2 relative z-10 border-t border-neutral-800/80 flex items-center justify-between text-[10px] text-neutral-400">
                 <div>
-                  VALID THRU <span className="text-amber-300 font-bold">2026/12/31</span>
+                  VALID THRU <span className="text-amber-300 font-bold tabular-nums">2026/12/31</span>
                 </div>
-                <div className="text-brand-emeraldLight font-semibold">URBAN RADAR VIP</div>
+                <div className="text-emerald-400 font-semibold">URBAN RADAR VIP</div>
               </div>
             </div>
           </article>
@@ -544,76 +582,80 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
 
         {/* BEGIN: AccountAndSecurity */}
         <OrganicCardReveal className="w-full">
-        <section data-purpose="account-and-security">
-          <h3 className="text-base font-black tracking-tight text-neutral-900 mb-2">Account &amp; Security</h3>
-          <div className="bg-white/72 backdrop-blur-xl rounded-2xl ring-1 ring-black/[0.07] shadow-[0_12px_32px_-16px_rgba(17,24,39,0.3),inset_0_1px_0_rgba(255,255,255,0.85)] divide-y divide-black/[0.05] overflow-hidden">
-            {/* Exclusive Perks Box */}
-            <div className="p-3 bg-black/[0.02]">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-neutral-900 tracking-tight">Exclusive Perks</span>
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-full ring-1 ring-emerald-500/20">
-                    4 项尊享权益
-                  </span>
+        <section data-purpose="account-and-security" className="space-y-3">
+          {/* Exclusive Perks Card */}
+          <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.06)] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-[13px] font-extrabold text-[#0f172a]">黑卡尊享权益</h3>
+                <p className="text-[11px] text-neutral-400 mt-0.5">点击图标可即时激活对应礼遇</p>
+              </div>
+              <span className="text-[11px] font-semibold text-emerald-700">4 项生效中</span>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenRadar) {
+                    onOpenRadar();
+                  } else {
+                    handlePerkClick('Priority Radar');
+                  }
+                }}
+                className="bg-neutral-50 hover:bg-neutral-100 rounded-xl p-2.5 border border-black/[0.05] text-center flex flex-col items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+              >
+                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+                  <Zap className="w-4 h-4 fill-amber-500 text-amber-500" />
                 </div>
-                <span className="text-[10px] text-neutral-400 font-medium">黑卡特权生效中</span>
-              </div>
+                <span className="text-[11px] font-bold text-[#0f172a] leading-tight">优先雷达</span>
+              </button>
 
-              <div className="grid grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onOpenRadar) {
-                      onOpenRadar();
-                    } else {
-                      handlePerkClick('Priority Radar');
-                    }
-                  }}
-                  className="bg-white/80 rounded-lg p-2 ring-1 ring-black/[0.06] text-center flex flex-col items-center justify-center gap-1 hover:ring-black/[0.14] transition cursor-pointer active:scale-95"
-                >
-                  <div className="w-7 h-7 rounded-full bg-neutral-50 flex items-center justify-center text-neutral-800">
-                    <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-neutral-800 leading-tight">Priority Radar</span>
-                </button>
+              <button
+                type="button"
+                onClick={() => handlePerkClick('Free Delivery')}
+                className="bg-neutral-50 hover:bg-neutral-100 rounded-xl p-2.5 border border-black/[0.05] text-center flex flex-col items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+              >
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                  <Truck className="w-4 h-4" />
+                </div>
+                <span className="text-[11px] font-bold text-[#0f172a] leading-tight">免配送费</span>
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() => handlePerkClick('Free Delivery')}
-                  className="bg-white/80 rounded-lg p-2 ring-1 ring-black/[0.06] text-center flex flex-col items-center justify-center gap-1 hover:ring-black/[0.14] transition cursor-pointer active:scale-95"
-                >
-                  <div className="w-7 h-7 rounded-full bg-neutral-50 flex items-center justify-center text-neutral-800">
-                    <Truck className="w-3.5 h-3.5 text-brand-emerald" />
-                  </div>
-                  <span className="text-[10px] font-bold text-neutral-800 leading-tight">Free Delivery</span>
-                </button>
+              <button
+                type="button"
+                onClick={() => handlePerkClick('VIP Support')}
+                className="bg-neutral-50 hover:bg-neutral-100 rounded-xl p-2.5 border border-black/[0.05] text-center flex flex-col items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+              >
+                <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center text-[#0284c7]">
+                  <Headset className="w-4 h-4" />
+                </div>
+                <span className="text-[11px] font-bold text-[#0f172a] leading-tight">专属客服</span>
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() => handlePerkClick('VIP Support')}
-                  className="bg-white/80 rounded-lg p-2 ring-1 ring-black/[0.06] text-center flex flex-col items-center justify-center gap-1 hover:ring-black/[0.14] transition cursor-pointer active:scale-95"
-                >
-                  <div className="w-7 h-7 rounded-full bg-neutral-50 flex items-center justify-center text-neutral-800">
-                    <Headset className="w-3.5 h-3.5 text-neutral-700" />
-                  </div>
-                  <span className="text-[10px] font-bold text-neutral-800 leading-tight">VIP Support</span>
-                </button>
+              <button
+                type="button"
+                onClick={() => handlePerkClick('Monthly Gift')}
+                className="bg-neutral-50 hover:bg-neutral-100 rounded-xl p-2.5 border border-black/[0.05] text-center flex flex-col items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+              >
+                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+                  <Gift className="w-4 h-4" />
+                </div>
+                <span className="text-[11px] font-bold text-[#0f172a] leading-tight">月度礼遇</span>
+              </button>
+            </div>
+          </div>
 
-                <button
-                  type="button"
-                  onClick={() => handlePerkClick('Monthly Gift')}
-                  className="bg-white/80 rounded-lg p-2 ring-1 ring-black/[0.06] text-center flex flex-col items-center justify-center gap-1 hover:ring-black/[0.14] transition cursor-pointer active:scale-95"
-                >
-                  <div className="w-7 h-7 rounded-full bg-neutral-50 flex items-center justify-center text-neutral-800">
-                    <Gift className="w-3.5 h-3.5 text-amber-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-neutral-800 leading-tight">Monthly Gift</span>
-                </button>
-              </div>
+          {/* Account & Security List Card */}
+          <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.06)] px-4 divide-y divide-black/[0.05]">
+            <div className="py-3.5 flex items-center justify-between">
+              <h3 className="text-[13px] font-extrabold text-[#0f172a]">账户与安全管理</h3>
+              <span className="text-[11px] text-neutral-400">权益 · 账号 · 偏好</span>
             </div>
 
             {/* Coupons Banner Row */}
-            <div
+            <button
+              type="button"
               onClick={() => {
                 if (onOpenCoupons) {
                   onOpenCoupons();
@@ -621,115 +663,109 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                   setIsCouponsOpen(true);
                 }
               }}
-              className="p-3 hover:bg-black/[0.03] transition flex items-center justify-between cursor-pointer"
+              className="w-full py-3.5 hover:bg-neutral-50/70 transition flex items-center justify-between cursor-pointer text-left"
             >
-              <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/12 text-amber-600 ring-1 ring-amber-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
                   <Ticket className="w-4 h-4" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-neutral-900">我的优惠券包</span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-500/12 text-amber-700 ring-1 ring-amber-500/20 rounded">
-                      {availableCouponsCount} 张可用
+                    <span className="text-xs font-bold text-[#0f172a]">我的优惠券包</span>
+                    <span className="text-[11px] font-semibold text-amber-700 tabular-nums">
+                      · {availableCouponsCount} 张可用
                     </span>
                   </div>
-                  <p className="text-[11px] text-neutral-500 mt-0.5 leading-tight">
-                    查看全品类通用券、时段专享券与过期失效记录
+                  <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
+                    查看全品类通用券、时段专享券与兑换记录
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-0.5 text-xs text-brand-emerald font-semibold flex-shrink-0 ml-2">
-                <span className="bg-black/[0.05] ring-1 ring-black/[0.05] px-1.5 py-0.2 rounded text-[11px] text-neutral-600">
-                  管理与兑换
-                </span>
-                <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
+              <div className="flex items-center gap-1 text-xs text-neutral-500 font-semibold flex-shrink-0 ml-2">
+                <span>管理</span>
+                <ChevronRight className="w-4 h-4 text-neutral-400" />
               </div>
-            </div>
+            </button>
 
             {/* Auth Center Row */}
-            <div className="p-3 bg-black/[0.02] hover:bg-black/[0.04] transition flex items-center justify-between">
-              <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/12 text-emerald-700 ring-1 ring-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <div className="py-3.5 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
                   <KeyRound className="w-4 h-4" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-neutral-900">账号注册、登录与身份切换</span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 bg-brand-emerald text-white rounded">
-                      AUTH
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-neutral-500 mt-0.5 leading-tight">
-                    支持短信验证码、账号密码注册登录与多身份极速切换
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-[#0f172a] block">账号注册、登录与身份切换</span>
+                  <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
+                    支持短信验证码、密码登录与多身份极速切换
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => handleOpenAuth('sms')}
-                className="flex-shrink-0 ml-2 inline-flex items-center gap-0.5 text-xs font-bold text-[#14181C] ring-1 ring-black/15 px-2.5 py-1 rounded-full bg-white/70 hover:bg-black/[0.04] active:scale-95 transition cursor-pointer"
+                className="flex-shrink-0 h-9 px-3 inline-flex items-center gap-0.5 text-xs font-bold text-white bg-[#0f172a] hover:bg-neutral-800 rounded-xl active:scale-95 transition cursor-pointer"
               >
-                注册 / 登录
-                <ChevronRight className="w-3 h-3 stroke-[2.5]" />
+                <span>注册 / 登录</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
             {/* Personal Info & Addresses Row */}
-            <div
-              onClick={() => {
-                setProfileEditTab('addresses');
-                setIsProfileEditOpen(true);
-              }}
-              className="p-3 hover:bg-black/[0.03] transition flex items-center justify-between cursor-pointer"
+            <button
+              type="button"
+              onClick={() => navigateToEditTab('addresses')}
+              className="w-full py-3.5 hover:bg-neutral-50/70 transition flex items-center justify-between cursor-pointer text-left"
             >
-              <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-black/[0.05] flex items-center justify-center text-neutral-700 flex-shrink-0 mt-0.5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-700 flex-shrink-0">
                   <User className="w-4 h-4" />
                 </div>
-                <div>
-                  <span className="text-xs font-bold text-neutral-900 block">Personal Information &amp; Addresses</span>
-                  <p className="text-[11px] text-neutral-400 mt-0.5">管理头像、昵称、常用地址簿与就餐偏好</p>
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-[#0f172a] block">个人资料与常用地址</span>
+                  <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
+                    管理头像、昵称、常用地址簿与就餐偏好
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-0.5 text-xs text-brand-emerald font-semibold flex-shrink-0">
-                <span className="bg-black/[0.05] ring-1 ring-black/[0.05] px-1.5 py-0.2 rounded text-[11px] text-neutral-600">
-                  {userProfile.addresses?.length || 1} 个地址
-                </span>
-                <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
+              <div className="flex items-center gap-1 text-xs text-neutral-500 font-semibold flex-shrink-0 ml-2 tabular-nums">
+                <span>{userProfile.addresses?.length || 1} 个地址</span>
+                <ChevronRight className="w-4 h-4 text-neutral-400" />
               </div>
-            </div>
+            </button>
 
             {/* Payment Methods Row */}
-            <div
+            <button
+              type="button"
               onClick={() => setActiveModal('payment')}
-              className="p-3 hover:bg-black/[0.03] transition flex items-center justify-between cursor-pointer"
+              className="w-full py-3.5 hover:bg-neutral-50/70 transition flex items-center justify-between cursor-pointer text-left"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-black/[0.05] flex items-center justify-center text-neutral-700 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-700 flex-shrink-0">
                   <CreditCard className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-neutral-900">Payment Methods</span>
+                <span className="text-xs font-bold text-[#0f172a]">支付方式管理</span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
-            </div>
+              <ChevronRight className="w-4 h-4 text-neutral-400" />
+            </button>
 
             {/* Privacy & Security Row */}
-            <div
+            <button
+              type="button"
               onClick={() => setActiveModal('security')}
-              className="p-3 hover:bg-black/[0.03] transition flex items-center justify-between cursor-pointer"
+              className="w-full py-3.5 hover:bg-neutral-50/70 transition flex items-center justify-between cursor-pointer text-left"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-black/[0.05] flex items-center justify-center text-neutral-700 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-700 flex-shrink-0">
                   <Shield className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-neutral-900">Privacy &amp; Security</span>
+                <span className="text-xs font-bold text-[#0f172a]">隐私与安全中心</span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
-            </div>
+              <ChevronRight className="w-4 h-4 text-neutral-400" />
+            </button>
 
             {/* Developer Auth & Center Row */}
-            <div
+            <button
+              type="button"
               onClick={() => {
                 if (isAdminDeveloper) {
                   openDevControlCenter();
@@ -737,48 +773,48 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                   openDevAuthModal();
                 }
               }}
-              className="p-3 hover:bg-black/[0.03] transition flex items-center justify-between cursor-pointer"
+              className="w-full py-3.5 hover:bg-neutral-50/70 transition flex items-center justify-between cursor-pointer text-left"
             >
-              <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-neutral-100 flex items-center justify-center text-neutral-600 flex-shrink-0 mt-0.5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-600 flex-shrink-0">
                   {isAdminDeveloper ? <Sparkles className="w-4 h-4 text-amber-500" /> : <Lock className="w-4 h-4" />}
                 </div>
-                <div>
-                  <span className="text-xs font-bold text-neutral-900 block">
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-[#0f172a] block">
                     {isAdminDeveloper ? '开发者模拟与调试中枢' : '开发者账号登录认证'}
                   </span>
-                  <p className="text-[11px] text-neutral-400 mt-0.5 leading-tight">
+                  <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
                     {isAdminDeveloper
-                      ? '已登录开发者账号 · 悬浮调试入口与控制中枢已激活'
-                      : '登录开发者账号以后才会在界面显示悬浮调试入口'}
+                      ? '悬浮调试入口与控制中枢已激活'
+                      : '登录后可开启界面调试与模拟控制台'}
                   </p>
                 </div>
               </div>
-              <div className="flex-shrink-0 ml-2 inline-flex items-center gap-0.5 text-xs text-neutral-700 bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded">
-                <span>{isAdminDeveloper ? '配置中枢 ⚡' : '登录开发者 🔑'}</span>
-                <ChevronRight className="w-3 h-3 text-neutral-400 stroke-[2.5]" />
+              <div className="flex-shrink-0 ml-2 inline-flex items-center gap-1 text-xs font-semibold text-neutral-700 bg-neutral-100 px-2.5 py-1.5 rounded-lg">
+                <span>{isAdminDeveloper ? '配置中枢' : '登录'}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
               </div>
-            </div>
+            </button>
 
             {/* Version & Cloud Sync Governance Row */}
-            <div className="p-3 hover:bg-neutral-50 transition flex items-center justify-between border-t border-neutral-100">
-              <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <div className="py-3.5 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
                   <Cloud className="w-4 h-4" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-neutral-900 block">
+                    <span className="text-xs font-bold text-[#0f172a] truncate">
                       {TCB_CLOUD_ENABLED ? '云端实时拉取与版本自愈' : '本地数据与版本自愈'}
                     </span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.2 rounded">
+                    <span className="text-[10px] font-semibold text-emerald-700 tabular-nums shrink-0">
                       {ACTIVE_BUILD_VERSION}
                     </span>
                   </div>
-                  <p className="text-[11px] text-neutral-400 mt-0.5 leading-tight">
+                  <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
                     {TCB_CLOUD_ENABLED
-                      ? '数据源直连腾讯云开发，换版自动清理残留并实时同步'
-                      : '当前为本地演示模式，数据仅存于本机，换版自动清理残留并刷新'}
+                      ? '直连云端，换版自动清理残留并实时同步'
+                      : '本地演示模式，支持清理旧版缓存并刷新'}
                   </p>
                 </div>
               </div>
@@ -792,10 +828,10 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                   );
                   manualForceCloudPurgeAndReload();
                 }}
-                className="flex-shrink-0 ml-2 inline-flex items-center gap-1 text-[11px] font-bold text-[#14181C] bg-black/[0.05] hover:bg-black/[0.09] ring-1 ring-black/10 px-2.5 py-1 rounded-lg transition active:scale-95 cursor-pointer"
+                className="flex-shrink-0 h-9 px-3 inline-flex items-center gap-1 text-xs font-bold text-[#0f172a] bg-neutral-100 hover:bg-neutral-200/70 rounded-xl transition active:scale-95 cursor-pointer"
                 title={TCB_CLOUD_ENABLED ? '清空本地所有旧版本缓存并从云端拉取最新数据' : '清空本地所有旧版本缓存并刷新页面'}
               >
-                <RotateCw className="w-3 h-3" />
+                <RotateCw className="w-3.5 h-3.5" />
                 <span>本地强刷</span>
               </button>
             </div>
@@ -805,15 +841,16 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
         {/* END: AccountAndSecurity */}
 
         {/* BEGIN: FooterActionButtons */}
-        <footer className="mt-2 flex items-center justify-center gap-4" data-purpose="footer-account-switch">
+        <footer className="mt-1 flex items-center justify-center gap-3" data-purpose="footer-account-switch">
           <button
             type="button"
             aria-label="切换用户"
             title="切换 / 注册新号"
             onClick={() => handleOpenAuth('presets')}
-            className="w-11 h-11 bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] rounded-xl text-neutral-700 shadow-[0_8px_24px_-14px_rgba(17,24,39,0.3)] hover:bg-white/90 flex items-center justify-center transition active:scale-95 cursor-pointer"
+            className="h-11 px-4 bg-white border border-black/[0.07] rounded-xl text-[#0f172a] text-xs font-bold shadow-[0_2px_10px_-6px_rgba(15,23,42,0.08)] hover:bg-neutral-50 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
           >
-            <UserCheck className="w-5 h-5 text-neutral-700" />
+            <UserCheck className="w-4 h-4 text-emerald-600" />
+            <span>切换账号</span>
           </button>
 
           <button
@@ -821,9 +858,10 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
             aria-label="安全退出"
             title="安全退出登录"
             onClick={handleSignOut}
-            className="w-11 h-11 bg-white/72 backdrop-blur-md ring-1 ring-red-500/20 rounded-xl text-red-600 shadow-[0_8px_24px_-14px_rgba(17,24,39,0.3)] hover:bg-red-50/60 flex items-center justify-center transition active:scale-95 cursor-pointer"
+            className="h-11 px-4 bg-white border border-rose-200 rounded-xl text-rose-600 text-xs font-bold shadow-[0_2px_10px_-6px_rgba(15,23,42,0.08)] hover:bg-rose-50/70 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
           >
-            <LogOut className="w-5 h-5 text-red-500" />
+            <LogOut className="w-4 h-4 text-rose-500" />
+            <span>退出登录</span>
           </button>
         </footer>
         {/* END: FooterActionButtons */}
@@ -832,16 +870,17 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
       {/* Payment Methods Modal */}
       {activeModal === 'payment' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white w-full max-w-sm rounded-2xl p-5 border border-brand-border shadow-2xl relative animate-in zoom-in-95">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-5 border border-black/[0.08] shadow-2xl relative animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
               <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-brand-dark" />
-                <h4 className="font-bold text-sm text-neutral-900">支付方式管理</h4>
+                <CreditCard className="w-4 h-4 text-[#0f172a]" />
+                <h4 className="font-bold text-sm text-[#0f172a]">支付方式管理</h4>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="w-6 h-6 rounded-full hover:bg-neutral-100 flex items-center justify-center text-neutral-500 cursor-pointer"
+                aria-label="关闭弹窗"
+                className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center text-neutral-500 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -849,19 +888,19 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
             <div className="py-4 space-y-2.5 text-xs">
               <div className="p-3 rounded-xl border border-neutral-900 bg-neutral-50 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-neutral-900 block">微信支付 (WeChat Pay)</span>
-                  <span className="text-[10px] text-neutral-500">默认快捷免密支付</span>
+                  <span className="font-bold text-[#0f172a] block">微信支付 (WeChat Pay)</span>
+                  <span className="text-[11px] text-neutral-500">默认快捷免密支付</span>
                 </div>
-                <span className="text-[10px] font-bold text-brand-emerald bg-brand-emeraldMuted px-2 py-0.5 rounded border border-emerald-200">
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                   已绑定
                 </span>
               </div>
               <div className="p-3 rounded-xl border border-neutral-200 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-neutral-900 block">支付宝 (Alipay)</span>
-                  <span className="text-[10px] text-neutral-500">花呗/余额宝安全支付</span>
+                  <span className="font-bold text-[#0f172a] block">支付宝 (Alipay)</span>
+                  <span className="text-[11px] text-neutral-500">花呗/余额宝安全支付</span>
                 </div>
-                <span className="text-[10px] font-bold text-brand-emerald bg-brand-emeraldMuted px-2 py-0.5 rounded border border-emerald-200">
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                   已绑定
                 </span>
               </div>
@@ -869,7 +908,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
             <button
               type="button"
               onClick={() => setActiveModal(null)}
-              className="w-full py-2.5 bg-brand-charcoal text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition active:scale-[0.99] cursor-pointer"
+              className="w-full h-11 bg-[#0f172a] text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition active:scale-[0.99] cursor-pointer"
             >
               确定
             </button>
@@ -880,30 +919,31 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
       {/* Privacy & Security Modal */}
       {activeModal === 'security' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white w-full max-w-sm rounded-2xl p-5 border border-brand-border shadow-2xl relative animate-in zoom-in-95">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-5 border border-black/[0.08] shadow-2xl relative animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
               <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-brand-dark" />
-                <h4 className="font-bold text-sm text-neutral-900">隐私与安全中心</h4>
+                <Shield className="w-4 h-4 text-[#0f172a]" />
+                <h4 className="font-bold text-sm text-[#0f172a]">隐私与安全中心</h4>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="w-6 h-6 rounded-full hover:bg-neutral-100 flex items-center justify-center text-neutral-500 cursor-pointer"
+                aria-label="关闭弹窗"
+                className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center text-neutral-500 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="py-4 space-y-2.5 text-xs">
               <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200">
-                <span className="font-bold text-neutral-900 block">数据端到端加密保护</span>
-                <span className="text-[10px] text-neutral-500 mt-0.5 block">
-                  您的订单位置信息及支付凭证均受 TLS 1.3 银行级协议加密。
+                <span className="font-bold text-[#0f172a] block">数据端到端加密保护</span>
+                <span className="text-[11px] text-neutral-500 mt-0.5 block">
+                  您的订单位置信息及支付凭证均受 TLS 1.3 协议加密保护。
                 </span>
               </div>
               <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200">
-                <span className="font-bold text-neutral-900 block">匿名点单隐私模式</span>
-                <span className="text-[10px] text-neutral-500 mt-0.5 block">
+                <span className="font-bold text-[#0f172a] block">匿名点单隐私模式</span>
+                <span className="text-[11px] text-neutral-500 mt-0.5 block">
                   餐车骑手仅获取脱敏虚拟电话与地址末段编号。
                 </span>
               </div>
@@ -911,7 +951,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
             <button
               type="button"
               onClick={() => setActiveModal(null)}
-              className="w-full py-2.5 bg-brand-charcoal text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition active:scale-[0.99] cursor-pointer"
+              className="w-full h-11 bg-[#0f172a] text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition active:scale-[0.99] cursor-pointer"
             >
               完成
             </button>

@@ -5,7 +5,7 @@
   "description": "UrbanRadar 食客端「我的 / 会员特权与黑卡中心」与「资料设置 / 会员资料与参数控制台」两个界面的独立运行工程",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
     "preview": "vite preview"
   },

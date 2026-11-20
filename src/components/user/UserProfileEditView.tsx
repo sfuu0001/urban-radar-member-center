@@ -1,45 +1,45 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { sendSmsCode, verifySmsCode } from '../../utils/smsService';
 import {
-  ArrowLeft,
-  RefreshCw,
   Check,
   Sliders,
   MapPin,
-  Fingerprint,
   Wallet,
   Edit2,
   Trash2,
   Plus,
   ShieldCheck,
-  Sparkles,
   AlertCircle,
-  Radio,
-  Award,
-  Cloud,
-  KeyRound,
-  Smartphone,
   Copy,
   CheckCircle2,
   Leaf,
   BellOff,
   CreditCard,
   User,
-  Calendar,
-  Flame,
   Tag,
-  Lock,
   Search,
   Navigation,
   Compass,
   Crosshair,
-  X
+  X,
+  RotateCcw,
+  KeyRound,
+  Smartphone,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Gift,
+  ChevronRight,
+  ChevronDown,
+  Lock
 } from 'lucide-react';
-import { UserProfile, UserAddress, UserPreferences } from '../../types';
+import { UserProfile, UserAddress, UserPreferences, UserWalletTransaction } from '../../types';
 import { syncUserProfileToCloud } from '../../utils/cloudbase';
 import { wbDb } from '../../utils/wbCloud';
 import { useToast } from '../ui/ToastContext';
+import { UnifiedPageHeader } from '../ui/UnifiedPageHeader';
+import { safeGetStorage, safeSetStorage } from '../../utils/safeStorage';
 import { saveAddresses, DeliveryAddressItem } from '../../utils/truckLocationEngine';
+import { getDemoDeviceHash } from '../../utils/deviceFingerprint';
 
 export interface UserProfileEditViewProps {
   userProfile: UserProfile;
@@ -48,11 +48,25 @@ export interface UserProfileEditViewProps {
   initialTab?: 'profile' | 'addresses' | 'preferences' | 'wallet' | 'security' | 'finance';
   onOpenCloudMonitor?: () => void;
   onOpenCloudCode?: () => void;
+  headerStickyClass?: string;
 }
 
 type TabType = 'tab-profile' | 'tab-preference' | 'tab-address' | 'tab-security' | 'tab-finance';
 
-// High-frequency landmark presets in Shanghai
+interface EditableSnapshot {
+  nickname: string;
+  avatar: string;
+  bio: string;
+  gender: 'secret' | 'male' | 'female';
+  birthday: string;
+  spiciness: 'none' | 'mild' | 'medium' | 'hot';
+  ecoMode: boolean;
+  silentCall: boolean;
+  autoCoupons: boolean;
+  dietaryNotes: string;
+  addresses: UserAddress[];
+}
+
 const PRESET_DISTRICT_ADDRESSES: {
   tag: '公司' | '家' | '学校' | '其他';
   address: string;
@@ -109,16 +123,130 @@ const PRESET_DISTRICT_ADDRESSES: {
   }
 ];
 
+const FALLBACK_ADDRESSES: UserAddress[] = [
+  {
+    id: 'addr-default-1',
+    name: '张伟',
+    phone: '13800138000',
+    tag: '公司',
+    address: '静安大悦城南座办公楼',
+    detail: '西藏北路166号南座801室',
+    houseNumber: '801室',
+    remarks: '放置前台或门口蜂巢柜',
+    isDefault: true,
+    latitude: 31.2435,
+    longitude: 121.469,
+    createdAt: '2026-08-01 09:20:11'
+  },
+  {
+    id: 'addr-sub-2',
+    name: '张伟',
+    phone: '13800138000',
+    tag: '家',
+    address: '静安国际中心公寓区',
+    detail: '汉中路光复路口1号楼',
+    houseNumber: '1202室',
+    remarks: '到达后电话联系，请轻声叩门',
+    isDefault: false,
+    latitude: 31.241,
+    longitude: 121.462,
+    createdAt: '2026-08-18 14:15:30'
+  }
+];
+
+function normalizeDateInput(raw?: string): string {
+  if (!raw) return '1990-01-01';
+  const cleaned = raw.trim().replace(/\//g, '-');
+  const match = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) return '1990-01-01';
+  const [, year, month, day] = match;
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+function buildInitialSnapshot(profile: UserProfile): EditableSnapshot {
+  return {
+    nickname: profile.nickname || '张伟 (店长)',
+    avatar: profile.avatar || '🧑‍💻',
+    bio: profile.bio || '店长 / 运营总管 · 设备硬件指纹绑定中',
+    gender: profile.gender || 'secret',
+    birthday: normalizeDateInput(profile.birthday),
+    spiciness: profile.preferences?.spiciness || 'mild',
+    ecoMode:
+      profile.preferences?.cutlery === 'eco' ||
+      profile.preferences?.cutlery === 'not_needed' ||
+      !profile.preferences?.cutlery,
+    silentCall: profile.preferences ? !profile.preferences.radarTracking : false,
+    autoCoupons: profile.preferences?.autoApplyCoupons !== false,
+    dietaryNotes: profile.preferences?.dietaryNote || '无特殊过敏原',
+    addresses:
+      profile.addresses && profile.addresses.length > 0
+        ? profile.addresses
+        : FALLBACK_ADDRESSES.map((a) => ({
+            ...a,
+            name: profile.nickname || a.name,
+            phone: profile.phone || a.phone
+          }))
+  };
+}
+
+function serializeSnapshot(snap: EditableSnapshot): string {
+  return JSON.stringify({
+    nickname: snap.nickname.trim(),
+    avatar: snap.avatar,
+    bio: snap.bio.trim(),
+    gender: snap.gender,
+    birthday: snap.birthday.trim(),
+    spiciness: snap.spiciness,
+    ecoMode: snap.ecoMode,
+    silentCall: snap.silentCall,
+    autoCoupons: snap.autoCoupons,
+    dietaryNotes: snap.dietaryNotes.trim(),
+    addresses: snap.addresses
+  });
+}
+
+/** 统一分区白卡容器，保证全页 5 个分区卡片质感完全一致 */
+const SectionCard: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+  divided?: boolean;
+}> = ({ children, className = '', divided = false }) => (
+  <section
+    className={`bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.06)] ${
+      divided ? 'px-4 divide-y divide-black/[0.05]' : 'p-4'
+    } ${className}`}
+  >
+    {children}
+  </section>
+);
+
+/** 统一细线卡片头部 */
+const SectionHeader: React.FC<{
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+}> = ({ title, subtitle, right }) => (
+  <div className="flex items-center justify-between gap-3">
+    <div className="min-w-0">
+      <h2 className="text-[13px] font-extrabold text-[#0f172a] tracking-tight leading-snug">
+        {title}
+      </h2>
+      {subtitle && <p className="text-[11px] text-neutral-400 mt-0.5">{subtitle}</p>}
+    </div>
+    {right && <div className="shrink-0">{right}</div>}
+  </div>
+);
+
 export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
   userProfile,
   onProfileUpdated,
   onBack,
   initialTab = 'profile',
-  onOpenCloudMonitor
+  onOpenCloudMonitor,
+  headerStickyClass
 }) => {
   const toast = useToast();
 
-  // Map incoming initialTab to local TabType
   const resolvedInitialTab: TabType = useMemo(() => {
     switch (initialTab) {
       case 'addresses':
@@ -138,24 +266,124 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
 
   const [activeTab, setActiveTab] = useState<TabType>(resolvedInitialTab);
 
-  /* 【2026-11-20】入口 tab 跟随：父级可通过 initialTab 指定落地分区（如「常用地址」卡片进入）。
-     原先只在 useState 初始值里读一次，若父级在挂载后切换入口（不卸载重挂），tab 不会跟随。
-     这里仅在 initialTab 变化时同步，不会干扰用户在页内手动切换。 */
   useEffect(() => {
     setActiveTab(resolvedInitialTab);
   }, [resolvedInitialTab]);
 
-  // Form State
-  const [nickname, setNickname] = useState(userProfile.nickname || '张伟 (店长)');
+  // Baseline snapshot for dirty detection
+  const [baseline, setBaseline] = useState<EditableSnapshot>(() =>
+    buildInitialSnapshot(userProfile)
+  );
+
+  // Draft States
+  const [nickname, setNickname] = useState(baseline.nickname);
   const [phone, setPhone] = useState(userProfile.phone || '');
-  // 手机号绑定流程（真实短信验证，2026-11-18）
+  const [avatar, setAvatar] = useState(baseline.avatar);
+  const [avatarImgError, setAvatarImgError] = useState(false);
+  const [bio, setBio] = useState(baseline.bio);
+  const [gender, setGender] = useState<'secret' | 'male' | 'female'>(baseline.gender);
+  const [birthday, setBirthday] = useState(baseline.birthday);
+
+  // Preferences Draft States
+  const [spiciness, setSpiciness] = useState<'none' | 'mild' | 'medium' | 'hot'>(
+    baseline.spiciness
+  );
+  const [ecoMode, setEcoMode] = useState<boolean>(baseline.ecoMode);
+  const [silentCall, setSilentCall] = useState<boolean>(baseline.silentCall);
+  const [autoCoupons, setAutoCoupons] = useState<boolean>(baseline.autoCoupons);
+  const [dietaryNotes, setDietaryNotes] = useState<string>(baseline.dietaryNotes);
+
+  // Addresses Draft State
+  const [addresses, setAddresses] = useState<UserAddress[]>(baseline.addresses);
+
+  // Re-sync if external account changes (e.g., switch account via Auth Modal)
+  useEffect(() => {
+    const nextSnap = buildInitialSnapshot(userProfile);
+    setBaseline(nextSnap);
+    setNickname(nextSnap.nickname);
+    setPhone(userProfile.phone || '');
+    setAvatar(nextSnap.avatar);
+    setBio(nextSnap.bio);
+    setGender(nextSnap.gender);
+    setBirthday(nextSnap.birthday);
+    setSpiciness(nextSnap.spiciness);
+    setEcoMode(nextSnap.ecoMode);
+    setSilentCall(nextSnap.silentCall);
+    setAutoCoupons(nextSnap.autoCoupons);
+    setDietaryNotes(nextSnap.dietaryNotes);
+    setAddresses(nextSnap.addresses);
+  }, [userProfile.uid]);
+
+  useEffect(() => {
+    setAvatarImgError(false);
+  }, [avatar]);
+
+  const currentDraftSnapshot: EditableSnapshot = useMemo(
+    () => ({
+      nickname,
+      avatar,
+      bio,
+      gender,
+      birthday,
+      spiciness,
+      ecoMode,
+      silentCall,
+      autoCoupons,
+      dietaryNotes,
+      addresses
+    }),
+    [
+      nickname,
+      avatar,
+      bio,
+      gender,
+      birthday,
+      spiciness,
+      ecoMode,
+      silentCall,
+      autoCoupons,
+      dietaryNotes,
+      addresses
+    ]
+  );
+
+  const hasUnsavedChanges = useMemo(
+    () => serializeSnapshot(currentDraftSnapshot) !== serializeSnapshot(baseline),
+    [currentDraftSnapshot, baseline]
+  );
+
+  const isProfileTabDirty = useMemo(
+    () =>
+      nickname.trim() !== baseline.nickname.trim() ||
+      avatar !== baseline.avatar ||
+      bio.trim() !== baseline.bio.trim() ||
+      gender !== baseline.gender ||
+      birthday.trim() !== baseline.birthday.trim(),
+    [nickname, avatar, bio, gender, birthday, baseline]
+  );
+
+  const isPreferenceTabDirty = useMemo(
+    () =>
+      spiciness !== baseline.spiciness ||
+      ecoMode !== baseline.ecoMode ||
+      silentCall !== baseline.silentCall ||
+      autoCoupons !== baseline.autoCoupons ||
+      dietaryNotes.trim() !== baseline.dietaryNotes.trim(),
+    [spiciness, ecoMode, silentCall, autoCoupons, dietaryNotes, baseline]
+  );
+
+  const isAddressTabDirty = useMemo(
+    () => JSON.stringify(addresses) !== JSON.stringify(baseline.addresses),
+    [addresses, baseline.addresses]
+  );
+
+  // Phone binding state
   const [isBindOpen, setIsBindOpen] = useState(false);
   const [bindPhone, setBindPhone] = useState('');
   const [bindCode, setBindCode] = useState('');
   const [bindCountdown, setBindCountdown] = useState(0);
   const [isSendingBind, setIsSendingBind] = useState(false);
   const [isBinding, setIsBinding] = useState(false);
-  // 解绑：二次确认 + 执行中标志；旧号验证：更换前必须先通过旧号短信校验
   const [unbindConfirming, setUnbindConfirming] = useState(false);
   const [isUnbinding, setIsUnbinding] = useState(false);
   const [oldPhoneVerified, setOldPhoneVerified] = useState(false);
@@ -163,68 +391,13 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
   const [oldPhoneCountdown, setOldPhoneCountdown] = useState(0);
   const [isSendingOldCode, setIsSendingOldCode] = useState(false);
   const [isVerifyingOld, setIsVerifyingOld] = useState(false);
-  const [avatar, setAvatar] = useState(userProfile.avatar || '🧑‍💻');
-  const [bio, setBio] = useState(userProfile.bio || '店长 / 运营总管 · 设备硬件指纹绑定中');
-  const [gender, setGender] = useState<'secret' | 'male' | 'female'>(userProfile.gender || 'secret');
-  const [birthday, setBirthday] = useState(userProfile.birthday || '1990/01/01');
 
-  // Preferences State
-  const [spiciness, setSpiciness] = useState<'none' | 'mild' | 'medium' | 'hot'>(
-    userProfile.preferences?.spiciness || 'mild'
-  );
-  const [ecoMode, setEcoMode] = useState<boolean>(
-    userProfile.preferences?.cutlery === 'eco' || userProfile.preferences?.cutlery === 'not_needed'
-  );
-  const [silentCall, setSilentCall] = useState<boolean>(
-    !userProfile.preferences?.radarTracking || false
-  );
-  const [autoCoupons, setAutoCoupons] = useState<boolean>(
-    userProfile.preferences?.autoApplyCoupons !== false
-  );
-  const [dietaryNotes, setDietaryNotes] = useState<string>(
-    userProfile.preferences?.dietaryNote || '无特殊过敏原'
-  );
-
-  // Addresses State
-  const [addresses, setAddresses] = useState<UserAddress[]>(() => {
-    if (userProfile.addresses && userProfile.addresses.length > 0) {
-      return userProfile.addresses;
-    }
-    return [
-      {
-        id: 'addr-default-1',
-        name: userProfile.nickname || '张伟',
-        phone: userProfile.phone || '13800138000',
-        tag: '公司',
-        address: '静安大悦城南座办公楼',
-        detail: '西藏北路166号南座801室',
-        houseNumber: '801室',
-        remarks: '放置前台或门口蜂巢柜',
-        isDefault: true,
-        latitude: 31.2435,
-        longitude: 121.469,
-        createdAt: '2024-01-15 09:20:11'
-      },
-      {
-        id: 'addr-sub-2',
-        name: userProfile.nickname || '张伟',
-        phone: userProfile.phone || '13800138000',
-        tag: '家',
-        address: '静安国际中心公寓区',
-        detail: '汉中路光复路口1号楼',
-        houseNumber: '1202室',
-        remarks: '到达后电话联系，请轻声叩门',
-        isDefault: false,
-        latitude: 31.241,
-        longitude: 121.462,
-        createdAt: '2024-02-18 14:15:30'
-      }
-    ];
-  });
-
-  // Address Search & Tag Filter
+  // Address Search, Filter & Delete Guard
   const [addressSearchQuery, setAddressSearchQuery] = useState('');
-  const [addressTagFilter, setAddressTagFilter] = useState<'all' | '公司' | '家' | '学校' | '其他'>('all');
+  const [addressTagFilter, setAddressTagFilter] = useState<'all' | '公司' | '家' | '学校' | '其他'>(
+    'all'
+  );
+  const [confirmDeleteAddrId, setConfirmDeleteAddrId] = useState<string | null>(null);
 
   // Inline Address Add/Edit State
   const [isAddingAddress, setIsAddingAddress] = useState(false);
@@ -239,15 +412,89 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
   const [addrLat, setAddrLat] = useState<number | undefined>(undefined);
   const [addrLng, setAddrLng] = useState<number | undefined>(undefined);
 
-  // Security Token & Sync States
-  const [hwToken, setHwToken] = useState('fp_sec_99a8x00138000#pos');
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState('刚刚已同步');
-  const [balance] = useState(userProfile.balance ?? 158.5);
-  const [points] = useState(userProfile.points ?? 1280);
-  const [financeFilter, setFinanceFilter] = useState<'all' | 'recharge' | 'expense' | 'points'>('all');
+  // Progressive disclosure / consolidation states
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
+  const [isDietaryPresetsOpen, setIsDietaryPresetsOpen] = useState(false);
+  const [isAddressSearchOpen, setIsAddressSearchOpen] = useState(false);
+  const [isPresetMenuOpen, setIsPresetMenuOpen] = useState(false);
+  const [isTechDetailsOpen, setIsTechDetailsOpen] = useState(false);
+  const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
+  const presetMenuRef = useRef<HTMLDivElement>(null);
+  const tabMenuRef = useRef<HTMLDivElement>(null);
 
-  // Sync to truckLocationEngine whenever address changes
+  useEffect(() => {
+    if (!isPresetMenuOpen && !isTabMenuOpen) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      if (
+        isPresetMenuOpen &&
+        presetMenuRef.current &&
+        !presetMenuRef.current.contains(e.target as Node)
+      ) {
+        setIsPresetMenuOpen(false);
+      }
+      if (isTabMenuOpen && tabMenuRef.current && !tabMenuRef.current.contains(e.target as Node)) {
+        setIsTabMenuOpen(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsPresetMenuOpen(false);
+        setIsTabMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [isPresetMenuOpen, isTabMenuOpen]);
+
+  // Security Token & Sync States
+  const [hwToken, setHwToken] = useState(() => getDemoDeviceHash());
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState(() =>
+    new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  );
+  const [isRadarLinkActive, setIsRadarLinkActive] = useState(true);
+  const [isNotificationOn, setIsNotificationOn] = useState<boolean>(() =>
+    safeGetStorage<boolean>('obsidian_member_notification_on', true)
+  );
+  const [financeFilter, setFinanceFilter] = useState<'all' | 'recharge' | 'expense' | 'reward'>(
+    'all'
+  );
+
+  const balance = userProfile.balance ?? 158.5;
+  const points = userProfile.points ?? 1280;
+
+  const toggleMemberNotification = () => {
+    setIsNotificationOn((prev) => {
+      const next = !prev;
+      safeSetStorage('obsidian_member_notification_on', next);
+      toast.info(
+        next ? '会员通知已开启：订单与黑卡特权动态将实时提醒' : '会员通知已关闭：将不再接收实时推送'
+      );
+      return next;
+    });
+  };
+
+  const handlePrimaryLinkToggle = () => {
+    if (onOpenCloudMonitor) {
+      onOpenCloudMonitor();
+      return;
+    }
+    setIsRadarLinkActive((prev) => {
+      const next = !prev;
+      toast.info(
+        next ? '实时参数联动已开启' : '已切换为手动同步模式',
+        next ? `云端与 POS 参数保持实时监听（${lastSyncTime}）` : '修改资料后可点击底部保存条手动下发'
+      );
+      return next;
+    });
+  };
+
   const syncToTruckEngine = (list: UserAddress[]) => {
     try {
       const converted: DeliveryAddressItem[] = list.map((a, idx) => ({
@@ -270,28 +517,48 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     }
   };
 
-  // 绑定验证码倒计时
-  React.useEffect(() => {
+  useEffect(() => {
     if (bindCountdown <= 0) return;
     const t = setTimeout(() => setBindCountdown((v) => v - 1), 1000);
     return () => clearTimeout(t);
   }, [bindCountdown]);
 
-  // 旧号验证验证码倒计时
-  React.useEffect(() => {
+  useEffect(() => {
     if (oldPhoneCountdown <= 0) return;
     const t = setTimeout(() => setOldPhoneCountdown((v) => v - 1), 1000);
     return () => clearTimeout(t);
   }, [oldPhoneCountdown]);
 
-  // 手机号绑定：发码 + 校验（服务端 /api/sms，验证通过后写入 profiles.phone）
+  useEffect(() => {
+    if (!confirmDeleteAddrId) return;
+    const t = setTimeout(() => setConfirmDeleteAddrId(null), 3500);
+    return () => clearTimeout(t);
+  }, [confirmDeleteAddrId]);
+
+  const handleDiscardChanges = () => {
+    setNickname(baseline.nickname);
+    setAvatar(baseline.avatar);
+    setBio(baseline.bio);
+    setGender(baseline.gender);
+    setBirthday(baseline.birthday);
+    setSpiciness(baseline.spiciness);
+    setEcoMode(baseline.ecoMode);
+    setSilentCall(baseline.silentCall);
+    setAutoCoupons(baseline.autoCoupons);
+    setDietaryNotes(baseline.dietaryNotes);
+    setAddresses(baseline.addresses);
+    setIsAddingAddress(false);
+    setEditingAddress(null);
+    setConfirmDeleteAddrId(null);
+    toast.info('已还原修改', '所有字段已恢复至上次保存状态');
+  };
+
   const handleSendBindCode = async () => {
     const clean = bindPhone.replace(/\D/g, '');
     if (clean.length !== 11) {
       toast.error('手机号格式不正确', '请输入 11 位手机号码');
       return;
     }
-    // 更换场景：旧号未验证前，连新号验证码都不发
     if (phone && !oldPhoneVerified) {
       toast.warning('请先验证旧手机号', '通过旧号短信校验后才能获取新号验证码');
       return;
@@ -303,10 +570,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
       toast.error('验证码发送失败', res.message || '请稍后重试');
       return;
     }
-    setBindCountdown(res.retryAfter && res.retryAfter > 60 ? res.retryAfter : 60);
-    if (res.mock && res.devCode) {
+    setBindCountdown(res.cooldownSeconds && res.cooldownSeconds > 0 ? res.cooldownSeconds : 60);
+    if (res.devCode) {
       setBindCode(res.devCode);
-      toast.info(`【演示通道】验证码 ${res.devCode}`, '服务器未配置阿里云短信；配置后即发真实短信');
+      toast.info(`【演示通道】验证码 ${res.devCode}`, '已自动填入演示验证码');
     } else {
       toast.success('验证码已发送', `请查收 ${clean.slice(0, 3)}****${clean.slice(-4)} 的短信`);
     }
@@ -322,7 +589,6 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
       toast.error('验证码格式不正确', '请输入 6 位数字验证码');
       return;
     }
-    // 更换场景：必须先通过旧号验证，防止绕过界面直接绑新号
     if (phone && !oldPhoneVerified) {
       toast.warning('请先验证旧手机号', '通过旧号短信校验后才能更换新号');
       return;
@@ -334,37 +600,24 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
       toast.error('绑定失败', res.message || '验证码校验未通过');
       return;
     }
-    // 冲突：服务端 ok:true 但 bound:false（唯一索引 409）——绝不能当成功
-    if (res.bound === false) {
-      toast.error('该手机号已被其他账号绑定', '请更换号码或先解绑原账号');
-      return;
-    }
-    // 只有服务端明确确认写入（bound===true，mock 通道同样返回 true）才算成功；
-    // 字段缺失一律按失败处理，杜绝「绑定失败但提示成功」
-    if (res.bound !== true) {
-      toast.error('绑定失败', '服务端未确认手机号写入档案，请重试');
-      return;
-    }
     setPhone(clean);
     setIsBindOpen(false);
     setBindCode('');
     onProfileUpdated({ ...userProfile, phone: clean, cloudSyncedAt: new Date().toISOString() });
-    toast.success('手机号已绑定', `账号已与 ${clean.slice(0, 3)}****${clean.slice(-4)} 绑定（已写入云端档案）`);
+    toast.success('手机号已绑定', `账号已与 ${clean.slice(0, 3)}****${clean.slice(-4)} 绑定`);
   };
 
-  // 打开绑定面板：重置全部流程状态（更换须先验证旧号，首次绑定免验证）
   const openBindPanel = () => {
     setBindPhone('');
     setBindCode('');
     setBindCountdown(0);
     setOldPhoneCode('');
     setOldPhoneCountdown(0);
-    setOldPhoneVerified(!phone); // 未绑定时无需旧号验证
+    setOldPhoneVerified(!phone);
     setUnbindConfirming(false);
     setIsBindOpen(true);
   };
 
-  // 关闭绑定面板：清空流程状态
   const closeBindPanel = () => {
     setIsBindOpen(false);
     setBindPhone('');
@@ -376,7 +629,6 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     setUnbindConfirming(false);
   };
 
-  // 旧号验证：向当前绑定手机号发码（purpose=login，不写 profiles）
   const handleSendOldCode = async () => {
     const clean = (phone || '').replace(/\D/g, '');
     if (clean.length !== 11) {
@@ -390,38 +642,32 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
       toast.error('验证码发送失败', res.message || '请稍后重试');
       return;
     }
-    setOldPhoneCountdown(res.retryAfter && res.retryAfter > 60 ? res.retryAfter : 60);
-    if (res.mock && res.devCode) {
+    setOldPhoneCountdown(res.cooldownSeconds && res.cooldownSeconds > 0 ? res.cooldownSeconds : 60);
+    if (res.devCode) {
       setOldPhoneCode(res.devCode);
-      toast.info(`【演示通道】验证码 ${res.devCode}`, '服务器未配置阿里云短信；配置后即发真实短信');
+      toast.info(`【演示通道】验证码 ${res.devCode}`, '已自动填入演示验证码');
     } else {
       toast.success('验证码已发送', `请查收旧号 ${clean.slice(0, 3)}****${clean.slice(-4)} 的短信`);
     }
   };
 
-  // 旧号验证：校验旧号验证码（purpose=login，避免把动作写进 profiles）
   const handleVerifyOldPhone = async () => {
     const clean = (phone || '').replace(/\D/g, '');
-    if (clean.length !== 11) {
-      toast.error('当前档案手机号无效', '无法验证旧号');
-      return;
-    }
     if (!/^\d{6}$/.test(oldPhoneCode.trim())) {
-      toast.error('验证码格式不正确', '请输入 6 位数字验证码');
+      toast.error('验证码格式不正确', '请输入 6 位旧号验证码');
       return;
     }
     setIsVerifyingOld(true);
-    const res = await verifySmsCode(clean, oldPhoneCode.trim(), 'login');
+    const res = await verifySmsCode(clean, oldPhoneCode.trim(), 'login', userProfile.uid);
     setIsVerifyingOld(false);
     if (!res.ok) {
-      toast.error('旧号验证失败', res.message || '验证码校验未通过');
+      toast.error('旧号验证未通过', res.message || '验证码错误或已过期');
       return;
     }
     setOldPhoneVerified(true);
     toast.success('旧号验证通过', '现在可以设置新手机号');
   };
 
-  // 解绑手机号：二次确认后直接清空服务端 profiles.phone（解绑不需要验证码）
   const handleUnbindPhone = async () => {
     if (!userProfile.uid) {
       toast.warning('当前为本地档案，暂不支持解绑');
@@ -449,25 +695,26 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     }
   };
 
-  // Cloud Sync Function
   const handleSaveAndSync = async () => {
     setIsSyncing(true);
 
+    const trimmedNickname = nickname.trim() || '张伟 (店长)';
+    const trimmedBio = bio.trim();
     const updatedPref: UserPreferences = {
       spiciness,
       cutlery: ecoMode ? 'eco' : 'needed',
       autoApplyCoupons: autoCoupons,
       radarTracking: !silentCall,
       smsNotification: silentCall,
-      dietaryNote: dietaryNotes
+      dietaryNote: dietaryNotes.trim() || '无特殊过敏原'
     };
 
     const updatedProfile: UserProfile = {
       ...userProfile,
-      nickname: nickname.trim() || '张伟 (店长)',
+      nickname: trimmedNickname,
       phone: phone || userProfile.phone,
       avatar,
-      bio: bio.trim(),
+      bio: trimmedBio,
       gender,
       birthday,
       balance,
@@ -477,30 +724,44 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
       cloudSyncedAt: new Date().toISOString()
     };
 
+    const nextBaseline: EditableSnapshot = {
+      nickname: trimmedNickname,
+      avatar,
+      bio: trimmedBio,
+      gender,
+      birthday,
+      spiciness,
+      ecoMode,
+      silentCall,
+      autoCoupons,
+      dietaryNotes: updatedPref.dietaryNote || '无特殊过敏原',
+      addresses
+    };
+
     try {
       const res = await syncUserProfileToCloud(updatedProfile);
       onProfileUpdated(res.profile);
       syncToTruckEngine(addresses);
-      setLastSyncTime(new Date().toLocaleTimeString());
-      toast.success('配置同步完成', '会员资料与参数设置已成功下发并同步至 POS 终端与云端');
+      setBaseline(nextBaseline);
+      setLastSyncTime(new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+      toast.success('资料保存成功', '会员资料与参数设置已同步生效');
     } catch {
-      setLastSyncTime(new Date().toLocaleTimeString());
-      toast.info('本地更新成功', '参数已成功持久化更新并在离线缓存中生效');
       onProfileUpdated(updatedProfile);
       syncToTruckEngine(addresses);
+      setBaseline(nextBaseline);
+      setLastSyncTime(new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+      toast.info('本地更新成功', '参数已保存并在本地缓存生效');
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Reissue Key Handler
   const handleReissueKey = () => {
     const newToken = 'fp_sec_' + Math.random().toString(36).substring(2, 8) + '#pos';
     setHwToken(newToken);
     toast.success('安全凭据重签成功', `硬件指纹密钥已更新为：${newToken}`);
   };
 
-  // Save Address from Inline Form
   const handleSaveAddress = () => {
     if (!addrLocation.trim()) {
       toast.warning('请输入地址', '小区/写字楼或地址位置不能为空');
@@ -525,8 +786,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
           : a
       );
       setAddresses(updated);
-      syncToTruckEngine(updated);
-      toast.success('地址更新成功', '常用收货地址已完成保存');
+      toast.info('地址已更新至草稿', '点击底部「保存更改」即可同步生效');
     } else {
       const newAddr: UserAddress = {
         id: `addr-${Date.now()}`,
@@ -542,13 +802,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
         longitude: addrLng || 121.469,
         createdAt: new Date().toLocaleString()
       };
-      const updated = [newAddr, ...addresses];
-      setAddresses(updated);
-      syncToTruckEngine(updated);
-      toast.success('新增地址成功', '已成功添加至常用收货地址簿');
+      setAddresses([newAddr, ...addresses]);
+      toast.info('新地址已加入草稿', '点击底部「保存更改」即可同步生效');
     }
 
-    // Reset inline form
     setIsAddingAddress(false);
     setEditingAddress(null);
     setAddrName('');
@@ -561,59 +818,56 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     setAddrLng(undefined);
   };
 
-  // Delete Address
   const handleDeleteAddress = (id: string) => {
+    if (confirmDeleteAddrId !== id) {
+      setConfirmDeleteAddrId(id);
+      return;
+    }
     const nextList = addresses.filter((a) => a.id !== id);
     if (nextList.length > 0 && !nextList.some((a) => a.isDefault)) {
-      nextList[0].isDefault = true;
+      nextList[0] = { ...nextList[0], isDefault: true };
     }
     setAddresses(nextList);
-    syncToTruckEngine(nextList);
-    toast.info('地址已移除', '该收货地址已从常用列表中删除');
+    setConfirmDeleteAddrId(null);
+    toast.info('地址已移除', '点击底部「保存更改」确认同步');
   };
 
-  // Set Default Address
   const handleSetDefaultAddress = (id: string) => {
     const nextList = addresses.map((a) => ({
       ...a,
       isDefault: a.id === id
     }));
     setAddresses(nextList);
-    syncToTruckEngine(nextList);
-    toast.success('默认地址已切换', '下次点单将优先选中此送达地址');
+    toast.info('默认地址已切换', '点击底部「保存更改」同步至默认点单设置');
   };
 
-  // Simulate GPS Geolocation Auto-Detection（演示数据：随机生成示例坐标，非本机真实 GPS 定位）
   const handleSimulateGpsAutofill = () => {
     const mockLat = 31.2435 + (Math.random() - 0.5) * 0.008;
     const mockLng = 121.469 + (Math.random() - 0.5) * 0.008;
     setAddrLat(Number(mockLat.toFixed(5)));
     setAddrLng(Number(mockLng.toFixed(5)));
-    setAddrLocation('示例地址 · 演示数据');
+    setAddrLocation('静安大悦城北座站台（示例）');
     setAddrDetail('静安区西藏北路166号北座');
-    setAddrHouseNumber('3楼天台极速交接站');
-    toast.info('演示模式', `演示模式：已填入示例坐标，非本机真实定位（示例：${mockLat.toFixed(4)}°N, ${mockLng.toFixed(4)}°E）`);
+    setAddrHouseNumber('1F 中庭交接站');
+    toast.info('演示坐标已填入', `${mockLat.toFixed(4)}°N, ${mockLng.toFixed(4)}°E`);
   };
 
-  // Radar Distance Check Simulation
   const handleSimulateRadarCheck = (addr: UserAddress) => {
     const distMeters = Math.floor(450 + Math.random() * 600);
     const etaMinutes = Math.max(3, Math.ceil(distMeters / 180));
     toast.info(
-      '雷达测距计算就绪',
-      `距离当前餐车约 ${distMeters} 米 · 车载 GPS 直线预估送达 ${etaMinutes} 分钟`
+      '雷达测距就绪',
+      `【${addr.address}】距当前餐车约 ${distMeters} 米 · 预估送达 ${etaMinutes} 分钟`
     );
   };
 
-  // Copy Address Payload
   const handleCopyAddressInfo = (addr: UserAddress) => {
     const payload = `【收货人】${addr.name} (${addr.phone})\n【送达地址】${addr.address} ${addr.detail} ${addr.houseNumber || ''}\n【备注】${addr.remarks || '无'}`;
-    navigator.clipboard.writeText(payload);
-    toast.success('地址信息已复制', '收件人姓名、电话与完整地址已复制至剪贴板');
+    void navigator.clipboard?.writeText(payload).catch(() => {});
+    toast.success('地址信息已复制', '收件人姓名、电话与完整地址已复制');
   };
 
-  // Load Preset Landmark
-  const handleApplyPreset = (preset: typeof PRESET_DISTRICT_ADDRESSES[0]) => {
+  const handleApplyPreset = (preset: (typeof PRESET_DISTRICT_ADDRESSES)[0]) => {
     setAddrName(nickname);
     setAddrPhone(phone);
     setAddrTag(preset.tag);
@@ -625,26 +879,18 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     setAddrLng(preset.lng);
     setIsAddingAddress(true);
     setEditingAddress(null);
-    toast.info('已导入商圈预设', `已自动载入 ${preset.address}，点击「保存」即可入库`);
+    toast.info('已载入商圈预设', `${preset.address}，点击「保存地址」即可添加`);
   };
 
-  // Reset to initial settings
   const handleResetToInitial = () => {
-    if (window.confirm('是否确认将全部参数重置回初始设定？')) {
-      setNickname('张伟 (店长)');
-      setBirthday('1990/01/01');
-      setBio('店长 / 运营总管 · 设备硬件指纹绑定中');
-      setGender('secret');
-      setSpiciness('mild');
-      setEcoMode(true);
-      setSilentCall(false);
-      setAutoCoupons(true);
-      setDietaryNotes('无特殊过敏原');
-      toast.info('参数已重置', '全部表单已恢复至默认初始参数');
-    }
+    setSpiciness('mild');
+    setEcoMode(true);
+    setSilentCall(false);
+    setAutoCoupons(true);
+    setDietaryNotes('无特殊过敏原');
+    toast.info('偏好已恢复默认', '可在底部点击「保存更改」确认应用');
   };
 
-  // Quick Dietary Tag Pills
   const dietaryPresets = [
     '免香菜',
     '不要葱蒜',
@@ -659,28 +905,21 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
   const handleToggleDietaryTag = (tag: string) => {
     if (dietaryNotes.includes(tag)) {
       const next = dietaryNotes
-        .split('，')
+        .split(/[，,]/)
         .map((s) => s.trim())
         .filter((s) => s && s !== tag)
         .join('，');
       setDietaryNotes(next || '无特殊过敏原');
+    } else if (dietaryNotes === '无特殊过敏原' || !dietaryNotes.trim()) {
+      setDietaryNotes(tag);
     } else {
-      if (dietaryNotes === '无特殊过敏原' || !dietaryNotes.trim()) {
-        setDietaryNotes(tag);
-      } else {
-        setDietaryNotes(`${dietaryNotes}，${tag}`);
-      }
+      setDietaryNotes(`${dietaryNotes}，${tag}`);
     }
   };
 
-  // Filtered Addresses for Compact Grid
   const filteredAddresses = useMemo(() => {
     return addresses.filter((a) => {
-      // Tag filter
-      if (addressTagFilter !== 'all' && a.tag !== addressTagFilter) {
-        return false;
-      }
-      // Search query filter
+      if (addressTagFilter !== 'all' && a.tag !== addressTagFilter) return false;
       if (addressSearchQuery.trim()) {
         const query = addressSearchQuery.trim().toLowerCase();
         const fullStr = `${a.name} ${a.phone} ${a.address} ${a.detail} ${a.houseNumber || ''} ${a.remarks || ''}`.toLowerCase();
@@ -690,698 +929,1483 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
     });
   }, [addresses, addressTagFilter, addressSearchQuery]);
 
-  // Preset avatar emoji options
   const avatarPresets = ['🧑‍💻', '👨‍💼', '🧔‍♂️', '👩‍🍳', '🧑‍🎨', '😎', '⚡', '☕'];
 
-  // Tab definitions
-  const tabsList = [
-    {
-      id: 'tab-profile' as const,
-      label: '基本资料',
-      enLabel: 'PROFILE',
-      icon: User,
-      badge: '档案完善',
-      badgeColor: 'bg-success-soft text-success border border-success/30'
-    },
-    {
-      id: 'tab-preference' as const,
-      label: '就餐偏好',
-      enLabel: 'PREFERENCE',
-      icon: Sliders,
-      badge: '厨房联动',
-      badgeColor: 'bg-warning-soft text-warning border border-warning/30'
-    },
-    {
-      id: 'tab-address' as const,
-      label: '常用地址',
-      enLabel: 'ADDRESS',
-      icon: MapPin,
-      badge: `${addresses.length}处·网格`,
-      badgeColor: 'bg-canvas-gray text-ink border border-hairline'
-    },
-    {
-      id: 'tab-security' as const,
-      label: '安全凭据',
-      enLabel: 'SECURITY',
-      icon: ShieldCheck,
-      badge: '99.8%',
-      badgeColor: 'bg-canvas-gray text-ink-secondary border border-hairline'
-    },
-    {
-      id: 'tab-finance' as const,
-      label: '财务对账',
-      enLabel: 'FINANCE',
-      icon: Wallet,
-      badge: '实时流水',
-      badgeColor: 'bg-canvas-gray text-ink-secondary border border-hairline'
-    }
-  ];
-
-  // 分段控件滑块索引（与 tabsList 一一对应）
-  const activeTabIndex = Math.max(0, tabsList.findIndex((t) => t.id === activeTab));
-
-  /* 【2026-11-20】访客态 UID 兜底：uid 为 'guest' 时 slice(-4) 会截出 "uest"，
-     页面上出现「UID: uest」断头文案（母版 ProfilePageView 已修，此处同步）。
-     云端唯一标识同样不能在手机号为空时退化成 "merchant_"。 */
   const rawUid = String(userProfile.uid || '');
   const isGuestUid = !rawUid || rawUid.toLowerCase() === 'guest';
   const uidTail = isGuestUid ? 'GUEST' : rawUid.slice(-4).toUpperCase();
   const cloudUid = isGuestUid
     ? 'visitor#local'
     : phone
-      ? `merchant_${phone}`
+      ? `member_${phone}`
       : `member_${uidTail.toLowerCase()}`;
 
-  // Simulated recent financial transactions
-  const financialRecords = [
+  const boundDeviceCount = userProfile.boundDevices?.length ?? 1;
+
+  const walletTransactions: UserWalletTransaction[] = useMemo(() => {
+    if (userProfile.walletHistory && userProfile.walletHistory.length > 0) {
+      return userProfile.walletHistory;
+    }
+    return [];
+  }, [userProfile.walletHistory]);
+
+  const tabsList = [
     {
-      id: 'tx-101',
-      title: '微信在线储值充值',
-      sub: '充值成功 · 自动获得 50 赠送积分',
-      time: '今日 14:20',
-      amount: '+¥100.00',
-      type: 'recharge',
-      status: '已到账'
+      id: 'tab-profile' as const,
+      label: '基本资料',
+      description: '头像、昵称、签名与绑定手机',
+      icon: User,
+      isDirty: isProfileTabDirty
     },
     {
-      id: 'tx-102',
-      title: '黑曜石餐车外送订单支付',
-      sub: '静安大悦城站台 · 外送单号 #8821',
-      time: '昨日 18:45',
-      amount: '-¥38.50',
-      type: 'expense',
-      status: '交易完成'
+      id: 'tab-preference' as const,
+      label: '就餐偏好',
+      description: '默认辣度、餐具优惠与忌口备注',
+      icon: Sliders,
+      isDirty: isPreferenceTabDirty
     },
     {
-      id: 'tx-103',
-      title: '每日低碳点单奖励积分',
-      sub: '践行无一次性餐具环保就餐',
-      time: '昨日 18:45',
-      amount: '+15 积分',
-      type: 'points',
-      status: '已核发'
+      id: 'tab-address' as const,
+      label: '常用地址',
+      description: `收货地址管理（${addresses.length} 处）`,
+      icon: MapPin,
+      isDirty: isAddressTabDirty
     },
     {
-      id: 'tx-104',
-      title: '黑金会员日专享立减金冲抵',
-      sub: '系统自动满减券优惠核销',
-      time: '09-10 12:30',
-      amount: '-¥10.00',
-      type: 'expense',
-      status: '卡券冲抵'
+      id: 'tab-security' as const,
+      label: '安全凭据',
+      description: `绑定设备（${boundDeviceCount} 台）与凭证签发`,
+      icon: ShieldCheck,
+      isDirty: false
+    },
+    {
+      id: 'tab-finance' as const,
+      label: '财务对账',
+      description: `储值流水与返现明细（${walletTransactions.length} 笔）`,
+      icon: Wallet,
+      isDirty: false
     }
   ];
 
-  const filteredFinancialRecords = financialRecords.filter((rec) => {
-    if (financeFilter === 'all') return true;
-    return rec.type === financeFilter;
-  });
+  const activeTabItem = tabsList.find((t) => t.id === activeTab) || tabsList[0];
+  const ActiveTabIcon = activeTabItem.icon;
+  const dirtyTabLabels = tabsList.filter((t) => t.isDirty).map((t) => t.label);
 
+  const filteredTransactions = useMemo(() => {
+    return walletTransactions.filter((tx) => {
+      if (financeFilter === 'all') return true;
+      if (financeFilter === 'recharge') return tx.type === 'recharge' || tx.type === 'refund';
+      return tx.type === financeFilter;
+    });
+  }, [walletTransactions, financeFilter]);
+
+  const isAvatarUrl = Boolean(avatar && /^(https?:|\/|data:)/.test(avatar) && !avatarImgError);
+  const displayAvatarFallback =
+    avatar && !/^(https?:|\/|data:)/.test(avatar)
+      ? avatar
+      : (nickname || 'U').trim().slice(0, 1).toUpperCase();
 
   return (
-    <div className="w-full min-h-screen bg-[#f6f6f4] text-[#1a1a17] pb-28 select-none font-sans">
-      <div className="w-full max-w-5xl mx-auto px-3.5 sm:px-6 pt-4 flex flex-col gap-4">
+    <div
+      className={`w-full min-h-screen bg-[#f5f5f3] text-[#0f172a] select-none font-sans ${
+        hasUnsavedChanges ? 'pb-28' : 'pb-12'
+      }`}
+    >
+      <UnifiedPageHeader
+        title="资料设置"
+        onBack={onBack}
+        backLabel="返回中心"
+        statusTone={isRadarLinkActive ? 'online' : 'offline'}
+        statusTitle={
+          isSyncing
+            ? '正在同步配置…'
+            : hasUnsavedChanges
+              ? '存在未保存修改'
+              : `参数在线 · ${lastSyncTime}`
+        }
+        primaryActive={isRadarLinkActive}
+        onPrimaryClick={handlePrimaryLinkToggle}
+        primaryTitle={onOpenCloudMonitor ? '云端实时监控' : '切换实时参数联动'}
+        isRefreshing={isSyncing}
+        onRefreshClick={handleSaveAndSync}
+        refreshTitle={hasUnsavedChanges ? '保存并同步修改' : '同步最新配置'}
+        refreshBadge={hasUnsavedChanges}
+        notificationOn={isNotificationOn}
+        onNotificationClick={toggleMemberNotification}
+        stickyClassName={headerStickyClass || 'sticky top-0 z-30'}
+      />
 
-        {/* ===== Header（逐条仿制母版 page-header：flex-col gap-2.5 + 内层居中标题） ===== */}
-        <header className="flex flex-col gap-2.5" data-purpose="page-header">
-          <div className="flex items-center justify-between gap-2">
-            {onBack && (
-              <button onClick={onBack} type="button" id="back-to-member-center-btn"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] rounded-lg text-xs font-bold tracking-wide text-brand-dark shadow-[0_1px_2px_rgba(17,24,39,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] hover:bg-white/90 active:scale-95 transition flex-shrink-0 cursor-pointer group">
-                <ArrowLeft className="w-3.5 h-3.5 text-neutral-800 transition-transform group-hover:-translate-x-0.5" />
-                <span className="text-xs font-bold">返回中心</span>
-              </button>
-            )}
-            <div className="flex-1 min-w-0 flex items-center justify-center px-1">
-              <span className="text-sm font-extrabold text-neutral-900 tracking-tight">会员资料与参数控制台</span>
-            </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {onOpenCloudMonitor && (
-                <button type="button" onClick={onOpenCloudMonitor} title="云监控"
-                  className="w-7 h-7 rounded-full bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] flex items-center justify-center text-neutral-600 shadow-[0_1px_2px_rgba(17,24,39,0.05)] hover:bg-white/90 active:scale-95 transition flex-shrink-0 cursor-pointer">
-                  <Radio className="w-3.5 h-3.5 text-brand-emerald animate-pulse" />
-                </button>
-              )}
-              <button onClick={handleSaveAndSync} disabled={isSyncing} className="inline-flex items-center gap-1 px-2 py-1.5 bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] rounded-full text-xs font-bold text-neutral-700 shadow-[0_1px_2px_rgba(17,24,39,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] active:scale-95 transition cursor-pointer hover:bg-white/90 disabled:opacity-70">
-                <RefreshCw className={`w-3.5 h-3.5 text-brand-emerald ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>{isSyncing ? '同步中...' : '保存并下发'}</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* ===== 会员概要（照搬母版 user-profile-summary：圆形头像 + 灰标签 + 余额） ===== */}
-        <section className="bg-white/72 backdrop-blur-xl rounded-2xl p-3 ring-1 ring-black/[0.07] shadow-[0_12px_32px_-16px_rgba(17,24,39,0.3),inset_0_1px_0_rgba(255,255,255,0.85)] flex items-center justify-between" data-purpose="user-profile-summary">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="relative flex-shrink-0">
-              <div className="w-11 h-11 rounded-full overflow-hidden border border-neutral-200 bg-neutral-100 flex items-center justify-center">
-                {avatar && /^(https?:|\/|data:)/.test(avatar) ? (
-                  <img loading="lazy" decoding="async" src={avatar} alt={nickname} className="w-full h-full object-cover" />
+      <div className="w-full mx-auto px-3.5 pt-3.5 flex flex-col gap-3">
+        {/* 顶部会员概览白卡（轻量化：去重同步时间，头像可点选直达更换，余额可点选直达对账） */}
+        <SectionCard className="!p-3.5 flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('tab-profile');
+                setIsAvatarPickerOpen((prev) => !prev);
+              }}
+              title="更换数字头像"
+              aria-label="更换数字头像"
+              className="relative shrink-0 cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-full bg-neutral-100 border border-black/[0.07] group-hover:border-emerald-500/50 flex items-center justify-center overflow-hidden transition">
+                {isAvatarUrl ? (
+                  <img
+                    src={avatar}
+                    alt={nickname}
+                    referrerPolicy="no-referrer"
+                    onError={() => setAvatarImgError(true)}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  <User className="w-6 h-6 text-neutral-400" />
+                  <span className="text-xl font-bold text-neutral-700 leading-none">
+                    {displayAvatarFallback}
+                  </span>
                 )}
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-brand-emerald rounded-full flex items-center justify-center text-white ring-2 ring-white">
-                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" /></svg>
-              </span>
-            </div>
-            <div className="flex flex-col leading-tight min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-bold text-neutral-900 tracking-tight truncate">{nickname || '张伟 (店长)'}</span>
-                <span className="text-[10px] whitespace-nowrap shrink-0 bg-black/[0.05] text-neutral-500 font-medium px-1.5 py-0.2 rounded ring-1 ring-black/[0.05]">UID: {uidTail}</span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] text-neutral-500 mt-1 min-w-0">
-                <span className="font-medium whitespace-nowrap">{phone || '未绑定手机号'}</span>
-                <span className="text-neutral-300 shrink-0">·</span>
-                <span className="inline-flex items-center gap-0.5 text-brand-emerald font-medium min-w-0">
-                  <Cloud className="w-3 h-3 shrink-0" />
-                  <span className="truncate">云函数已打通</span>
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 pl-2 flex-shrink-0">
-            <div className="text-right">
-              <div className="text-sm font-extrabold text-neutral-900 leading-none">¥{balance.toFixed(2)}</div>
-              <div className="text-[10px] text-neutral-400 mt-0.5">账户余额</div>
-            </div>
-          </div>
-        </section>
-
-        {/* ===== 分段控件 TAB（灰底轨道 + 白色滑动胶囊，仿母版性别分段） ===== */}
-        <nav
-          role="tablist"
-          aria-label="资料分区"
-          data-purpose="tab-navigator"
-          className="relative grid grid-cols-5 bg-black/[0.045] rounded-full p-1 ring-1 ring-black/[0.05] shadow-[inset_0_1px_2px_rgba(17,24,39,0.045)]"
-        >
-          {/* 滑动白胶囊：位置随 activeTabIndex 平移，宽度恒为 1/5 */}
-          <span
-            aria-hidden="true"
-            className="absolute top-1 bottom-1 rounded-full bg-white ring-1 ring-black/[0.05] shadow-[0_1px_2px_rgba(17,24,39,0.1),0_2px_8px_-2px_rgba(17,24,39,0.14)] transition-[left] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] pointer-events-none"
-            style={{
-              width: `calc((100% - 0.5rem) / ${tabsList.length})`,
-              left: `calc(0.25rem + (100% - 0.5rem) / ${tabsList.length} * ${activeTabIndex})`
-            }}
-          />
-          {tabsList.map((t) => {
-            const Icon = t.icon;
-            const isActive = activeTab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-controls={`tab-panel-${t.id.replace('tab-', '')}`}
-                data-tab={t.id}
-                id={`tab-nav-${t.id}`}
-                onClick={() => setActiveTab(t.id)}
-                className={`relative z-10 h-9 px-0.5 rounded-full flex items-center justify-center gap-1 text-[11px] sm:text-xs whitespace-nowrap cursor-pointer transition-colors duration-200 ${
-                  isActive
-                    ? 'text-neutral-900 font-black'
-                    : 'text-neutral-500 font-semibold hover:text-neutral-800'
-                }`}
+              <span
+                aria-hidden="true"
+                className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-white ring-2 ring-white"
               >
-                <Icon
-                  className={`w-3.5 h-3.5 shrink-0 transition-colors ${isActive ? 'text-brand-emerald' : 'text-neutral-400'}`}
-                  strokeWidth={isActive ? 2.4 : 2}
-                />
-                <span className="truncate">{t.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+                <Check className="w-2.5 h-2.5" strokeWidth={3} />
+              </span>
+            </button>
 
-        {/* ===== 内容卡片（母版白卡） ===== */}
-        <section className="bg-white/72 backdrop-blur-xl rounded-2xl ring-1 ring-black/[0.07] shadow-[0_12px_32px_-16px_rgba(17,24,39,0.3),inset_0_1px_0_rgba(255,255,255,0.85)] p-3.5 sm:p-4">
-
-          {/* TAB 1: 基本资料 */}
-          {activeTab === 'tab-profile' && (
-            <div className="animate-in fade-in duration-normal space-y-2.5" id="tab-panel-profile">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-brand-emerald" />
-                  <h3 className="text-base font-black tracking-tight text-neutral-900">基本资料</h3>
-                </div>
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ring-1 ${nickname && phone ? 'text-emerald-700 bg-emerald-50/70 ring-emerald-600/20' : 'text-amber-700 bg-amber-50/70 ring-amber-600/20'}`}>
-                  {nickname && phone ? '档案已完善' : '待补齐手机号'}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-sm font-extrabold text-[#0f172a] tracking-tight truncate">
+                  {nickname || '张伟 (店长)'}
+                </span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
+                    isGuestUid
+                      ? 'bg-neutral-100 text-neutral-500'
+                      : 'bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  {isGuestUid ? '访客' : 'VIP'}
+                </span>
+                <span className="text-[11px] font-medium text-neutral-400 tabular-nums shrink-0">
+                  {uidTail}
                 </span>
               </div>
-
-              <div className="grid gap-2.5 md:grid-cols-2 md:items-start">
-              <div className="space-y-2.5">
-
-              {/* 区块 1：数字头像 */}
-              <div className="rounded-xl bg-black/[0.02] ring-1 ring-black/[0.04] p-3">
-                <div className="flex items-baseline justify-between mb-2.5">
-                  <span className="text-[11px] font-black text-neutral-500 tracking-wide">数字头像</span>
-                  <span className="text-[10px] text-neutral-400">点选即生效</span>
-                </div>
-                <div className="flex flex-wrap gap-2" id="avatar-container">
-                  {avatarPresets.map((icon, idx) => {
-                    const isSelected = avatar === icon;
-                    return (
-                      <button key={icon} type="button" data-avatar-id={idx + 1} onClick={() => setAvatar(icon)}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-lg transition cursor-pointer ${
-                          isSelected
-                            ? 'bg-white ring-2 ring-brand-emerald ring-offset-2 ring-offset-[#fafaf8] shadow-[0_2px_8px_-2px_rgba(5,150,105,0.35)]'
-                            : 'bg-white/70 ring-1 ring-black/[0.06] hover:bg-white hover:ring-black/[0.14] hover:-translate-y-0.5'
-                        }`}>
-                        {icon}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="text-[11px] text-neutral-500 mt-1 tabular-nums font-medium truncate">
+                {phone || '未绑定手机号'}
               </div>
+            </div>
+          </div>
 
-              {/* 区块 2：个性签名 */}
-              <div className="rounded-xl bg-black/[0.02] ring-1 ring-black/[0.04] p-3">
-                <div className="flex items-baseline justify-between mb-2">
-                  <span className="text-[11px] font-black text-neutral-500 tracking-wide">个性签名</span>
-                  <span className={`text-[10px] tabular-nums ${bio.length >= 55 ? 'text-amber-600 font-bold' : 'text-neutral-400'}`}>{bio.length}/60</span>
-                </div>
-                <textarea id="bio" rows={3} value={bio} maxLength={60} onChange={(e) => setBio(e.target.value)} placeholder="写点什么..."
-                  className="w-full p-2.5 rounded-lg bg-white ring-1 ring-black/[0.06] focus:ring-2 focus:ring-emerald-600/35 focus:border-emerald-600 border border-transparent outline-none text-xs leading-relaxed text-neutral-900 transition resize-none placeholder:text-neutral-300" />
-                <div className="text-[10px] text-neutral-400 mt-1.5">展示在雷达卡片与商家端</div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('tab-finance')}
+            title="查看资产与对账明细"
+            className="text-right shrink-0 pl-2.5 pr-1 py-1 -my-1 rounded-xl border-l border-black/[0.06] hover:bg-neutral-50 transition cursor-pointer flex items-center gap-1 group"
+          >
+            <div>
+              <div className="text-[15px] font-black text-[#0f172a] tabular-nums leading-none">
+                ¥{balance.toFixed(2)}
               </div>
+              <div className="text-[11px] font-medium text-neutral-400 mt-1 tabular-nums">
+                {points} 积分
               </div>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-neutral-300 group-hover:text-neutral-500 transition" />
+          </button>
+        </SectionCard>
 
-              {/* 区块 3：身份档案 */}
-              <div className="rounded-xl bg-black/[0.02] ring-1 ring-black/[0.04] px-3 pb-1">
-                <div className="flex items-baseline justify-between pt-3">
-                  <span className="text-[11px] font-black text-neutral-500 tracking-wide">身份档案</span>
-                  <span className="text-[10px] text-neutral-400">仅自己与商家可见</span>
-                </div>
-              <div className="divide-y divide-black/[0.04]">
-                {/* 昵称 */}
-                <div className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <label className="text-xs font-bold text-neutral-900" htmlFor="nickname">公开昵称</label>
-                    <div className="text-[10px] text-neutral-400 mt-0.5">展示在订单与雷达卡片</div>
-                  </div>
-                  <div className="relative w-full max-w-[200px] shrink-0">
-                    <input id="nickname" type="text" value={nickname} maxLength={20} onChange={(e) => setNickname(e.target.value)} placeholder="输入您的称呼"
-                      className="w-full h-9 px-3 pr-11 rounded-lg bg-white ring-1 ring-black/[0.06] focus:ring-2 focus:ring-emerald-600/35 focus:border-emerald-600 border border-transparent outline-none text-xs text-neutral-900 transition tabular-nums placeholder:text-neutral-300" />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400 tabular-nums">{nickname.length}/20</span>
-                  </div>
-                </div>
+        {/* 5 分区收拢为紧凑型下拉选择条（对齐顶部视图切换器） */}
+        <div ref={tabMenuRef} className="relative" data-purpose="tab-navigator">
+          <button
+            type="button"
+            id={`tab-nav-${activeTabItem.id}`}
+            onClick={() => setIsTabMenuOpen((prev) => !prev)}
+            aria-haspopup="listbox"
+            aria-expanded={isTabMenuOpen}
+            aria-label="切换资料分区"
+            className="w-full h-11 px-3 rounded-xl bg-white hover:bg-neutral-50/80 border border-black/[0.06] shadow-[0_1px_4px_-2px_rgba(15,23,42,0.05)] flex items-center justify-between gap-2 text-left transition active:scale-[0.99] cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-7 h-7 rounded-lg bg-[#0f172a] text-emerald-400 flex items-center justify-center shrink-0">
+                <ActiveTabIcon className="w-3.5 h-3.5" />
+              </span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-xs font-extrabold text-[#0f172a] shrink-0">
+                  {activeTabItem.label}
+                </span>
+                <span className="text-neutral-300 shrink-0" aria-hidden="true">
+                  ·
+                </span>
+                <span className="text-[11px] text-neutral-400 truncate">
+                  {activeTabItem.description}
+                </span>
+              </div>
+            </div>
 
-                {/* 手机号 */}
-                <div className="py-2.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-neutral-900">绑定手机号</span>
-                        {phone ? <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-0.5"><ShieldCheck className="w-3 h-3" />已验证</span>
-                          : <span className="text-[10px] font-bold text-amber-600 flex items-center gap-0.5"><AlertCircle className="w-3 h-3" />未绑定</span>}
+            <div className="flex items-center gap-2 shrink-0">
+              {hasUnsavedChanges && (
+                <span
+                  title="存在未保存改动"
+                  aria-label="存在未保存改动"
+                  className="w-1.5 h-1.5 rounded-full bg-amber-500"
+                />
+              )}
+              <ChevronDown
+                className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${
+                  isTabMenuOpen ? 'rotate-180 text-[#0f172a]' : ''
+                }`}
+              />
+            </div>
+          </button>
+
+          {isTabMenuOpen && (
+            <div
+              role="listbox"
+              aria-label="资料分区列表"
+              className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-2xl bg-white border border-black/[0.08] shadow-[0_14px_32px_-8px_rgba(15,23,42,0.18)] p-1.5 space-y-1 animate-in fade-in"
+            >
+              {tabsList.map((t) => {
+                const Icon = t.icon;
+                const isActive = activeTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    data-tab={t.id}
+                    onClick={() => {
+                      setActiveTab(t.id);
+                      setIsTabMenuOpen(false);
+                    }}
+                    className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 text-left transition cursor-pointer ${
+                      isActive
+                        ? 'bg-[#ecfdf5] text-[#065f46] ring-1 ring-[#10b981]/30'
+                        : 'hover:bg-neutral-50 text-[#0f172a]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                          isActive
+                            ? 'bg-white text-[#059669] shadow-xs'
+                            : 'bg-neutral-100 text-neutral-500'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold truncate">{t.label}</span>
+                          {t.isDirty && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-bold leading-none shrink-0">
+                              未保存
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className={`text-[10px] mt-0.5 truncate ${
+                            isActive ? 'text-[#047857]/80' : 'text-neutral-400'
+                          }`}
+                        >
+                          {t.description}
+                        </div>
                       </div>
-                      <div className="text-[10px] text-neutral-400 mt-0.5">用于登录与订单通知</div>
                     </div>
-                    {!isBindOpen && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-xs text-neutral-600 tabular-nums">{phone ? (phone.slice(0, 3) + '****' + phone.slice(-4)) : '尚未绑定'}</span>
-                        <button type="button" onClick={openBindPanel} className="h-7 px-2.5 rounded-lg bg-white ring-1 ring-black/[0.06] hover:bg-black/[0.03] hover:ring-black/[0.12] text-neutral-700 text-[11px] font-bold transition cursor-pointer">{phone ? '更换' : '去绑定'}</button>
+                    {isActive && (
+                      <span className="w-5 h-5 rounded-full bg-[#10b981]/15 text-[#059669] flex items-center justify-center shrink-0">
+                        <Check className="w-3 h-3" strokeWidth={2.6} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ==================== TAB 1: 基本资料（收拢为单一整洁档案白卡） ==================== */}
+        {activeTab === 'tab-profile' && (
+          <div id="tab-panel-profile">
+            <SectionCard divided>
+              {/* 数字头像（默认折叠为紧凑单行，点击按需展开 8 款网格） */}
+              <div className="py-3.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-[#0f172a]">数字头像</div>
+                    <div className="text-[11px] text-neutral-400 mt-0.5">
+                      点选预设图标，保存后全端同步
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
+                    aria-expanded={isAvatarPickerOpen}
+                    className="h-9 px-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200/70 text-[#0f172a] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition shrink-0"
+                  >
+                    <span className="text-base leading-none">{displayAvatarFallback}</span>
+                    <span>{isAvatarPickerOpen ? '收起' : '更换'}</span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-neutral-500 transition-transform ${
+                        isAvatarPickerOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {isAvatarPickerOpen && (
+                  <div
+                    className="grid grid-cols-4 gap-2.5 mt-3 pt-3 border-t border-black/[0.05] animate-in fade-in"
+                    id="avatar-container"
+                  >
+                    {avatarPresets.map((icon, idx) => {
+                      const isSelected = avatar === icon;
+                      return (
+                        <button
+                          key={icon}
+                          type="button"
+                          data-avatar-id={idx + 1}
+                          onClick={() => setAvatar(icon)}
+                          aria-label={`选择头像 ${icon}`}
+                          aria-pressed={isSelected}
+                          className={`h-11 rounded-xl flex items-center justify-center text-xl transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-50 ring-2 ring-emerald-600 shadow-xs'
+                              : 'bg-neutral-50 hover:bg-neutral-100 border border-black/[0.05]'
+                          }`}
+                        >
+                          {icon}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 公开昵称 */}
+              <div className="py-3.5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#0f172a] block" htmlFor="nickname">
+                      公开昵称
+                    </label>
+                    <span className="text-[11px] text-neutral-400">展示在订单叫号与雷达卡片</span>
+                  </div>
+                  <span className="text-[11px] text-neutral-400 tabular-nums shrink-0">
+                    {nickname.length}/20
+                  </span>
+                </div>
+                <input
+                  id="nickname"
+                  type="text"
+                  value={nickname}
+                  maxLength={20}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="输入您的称呼"
+                  className="w-full h-10 px-3 rounded-xl bg-neutral-50 border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#0f172a] transition tabular-nums placeholder:text-neutral-400"
+                />
+              </div>
+
+              {/* 个性签名（并入同一档案卡） */}
+              <div className="py-3.5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#0f172a] block" htmlFor="bio">
+                      个性签名
+                    </label>
+                    <span className="text-[11px] text-neutral-400">展示在商家备餐视图</span>
+                  </div>
+                  <span
+                    className={`text-[11px] tabular-nums shrink-0 ${
+                      bio.length >= 55 ? 'text-amber-600 font-bold' : 'text-neutral-400'
+                    }`}
+                  >
+                    {bio.length}/60
+                  </span>
+                </div>
+                <textarea
+                  id="bio"
+                  rows={2}
+                  value={bio}
+                  maxLength={60}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="写点什么介绍你的口味偏好..."
+                  className="w-full p-3 rounded-xl bg-neutral-50 border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs leading-relaxed text-[#0f172a] transition resize-none placeholder:text-neutral-400"
+                />
+              </div>
+
+              {/* 绑定手机号 */}
+              <div className="py-3.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-[#0f172a]">绑定手机号</span>
+                      {phone ? (
+                        <span className="text-[11px] font-semibold text-emerald-700 inline-flex items-center gap-0.5">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          已验证
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-amber-600 inline-flex items-center gap-0.5">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          未绑定
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-neutral-400 block mt-0.5">
+                      用于账号登录与取餐动态提醒
+                    </span>
+                  </div>
+
+                  {!isBindOpen && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-semibold text-neutral-700 tabular-nums">
+                        {phone ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : '未绑定'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={openBindPanel}
+                        className="h-9 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200/70 text-[#0f172a] text-xs font-bold transition cursor-pointer"
+                      >
+                        {phone ? '管理' : '去绑定'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {isBindOpen && (
+                  <div className="mt-3 rounded-xl border border-black/[0.08] bg-neutral-50 p-3 space-y-2.5 animate-in fade-in">
+                    {phone && (
+                      <div className="space-y-2 pb-2.5 border-b border-black/[0.06]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#0f172a]">
+                            验证旧号 {phone.slice(0, 3)}****{phone.slice(-4)}
+                          </span>
+                          {oldPhoneVerified && (
+                            <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              已通过
+                            </span>
+                          )}
+                        </div>
+                        {!oldPhoneVerified && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={6}
+                              value={oldPhoneCode}
+                              onChange={(e) =>
+                                setOldPhoneCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                              }
+                              placeholder="6 位验证码"
+                              className="w-28 h-9 px-2.5 rounded-lg border border-black/[0.1] bg-white text-xs tabular-nums tracking-widest outline-none focus:border-emerald-600"
+                            />
+                            <button
+                              type="button"
+                              disabled={oldPhoneCountdown > 0 || isSendingOldCode}
+                              onClick={handleSendOldCode}
+                              className="h-9 px-3 rounded-lg bg-white border border-black/[0.08] text-neutral-700 text-xs font-bold disabled:opacity-40 cursor-pointer"
+                            >
+                              {isSendingOldCode
+                                ? '发送中'
+                                : oldPhoneCountdown > 0
+                                  ? `${oldPhoneCountdown}s`
+                                  : '获取验证码'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isVerifyingOld}
+                              onClick={handleVerifyOldPhone}
+                              className="h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold disabled:opacity-40 cursor-pointer"
+                            >
+                              {isVerifyingOld ? '校验中' : '验证旧号'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div
+                      className={`space-y-2 ${
+                        phone && !oldPhoneVerified ? 'opacity-40 pointer-events-none' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={11}
+                          value={bindPhone}
+                          onChange={(e) =>
+                            setBindPhone(e.target.value.replace(/\D/g, '').slice(0, 11))
+                          }
+                          placeholder="输入 11 位新手机号"
+                          className="flex-1 h-9 px-3 rounded-lg border border-black/[0.1] bg-white text-xs tabular-nums outline-none focus:border-emerald-600"
+                        />
+                        <button
+                          type="button"
+                          disabled={bindCountdown > 0 || isSendingBind}
+                          onClick={handleSendBindCode}
+                          className="h-9 px-3 rounded-lg bg-white border border-black/[0.08] text-neutral-700 text-xs font-bold disabled:opacity-40 cursor-pointer shrink-0"
+                        >
+                          {isSendingBind
+                            ? '发送中'
+                            : bindCountdown > 0
+                              ? `${bindCountdown}s`
+                              : '获取验证码'}
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={bindCode}
+                          onChange={(e) =>
+                            setBindCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                          }
+                          placeholder="6 位验证码 (演示: 123456)"
+                          className="flex-1 h-9 px-3 rounded-lg border border-black/[0.1] bg-white text-xs tabular-nums tracking-wider outline-none focus:border-emerald-600"
+                        />
+                        <button
+                          type="button"
+                          disabled={isBinding}
+                          onClick={handleConfirmBind}
+                          className="h-9 px-3.5 rounded-lg bg-emerald-600 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shrink-0"
+                        >
+                          {isBinding ? '绑定中' : '确认绑定'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={closeBindPanel}
+                          className="h-9 px-2 text-xs text-neutral-500 hover:text-[#0f172a] cursor-pointer shrink-0"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+
+                    {phone && (
+                      <div className="pt-2 border-t border-black/[0.06] flex items-center justify-between">
+                        <span className="text-[11px] text-neutral-400">如需移除当前绑定</span>
+                        <button
+                          type="button"
+                          disabled={!userProfile.uid || isUnbinding}
+                          onClick={handleUnbindPhone}
+                          className={`text-[11px] underline underline-offset-2 disabled:opacity-40 cursor-pointer ${
+                            unbindConfirming
+                              ? 'font-bold text-rose-600'
+                              : 'text-neutral-500 hover:text-rose-600'
+                          }`}
+                        >
+                          {isUnbinding ? '解绑中...' : unbindConfirming ? '再次点击确认解绑' : '解绑手机号'}
+                        </button>
                       </div>
                     )}
                   </div>
-                  {phone && !isBindOpen && (
-                    <button type="button" disabled={!userProfile.uid || isUnbinding} onClick={handleUnbindPhone} title={!userProfile.uid ? '当前为本地档案，暂不支持解绑' : undefined}
-                      className={`mt-2 text-[10px] underline underline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed ${unbindConfirming ? 'font-bold text-amber-600' : 'text-neutral-400 hover:text-amber-600'}`}>
-                      {isUnbinding ? '解绑中...' : unbindConfirming ? '确认解绑' : '解绑手机号'}
-                    </button>
-                  )}
-                  {isBindOpen && (
-                    <div className="mt-3 rounded-xl border border-black/[0.08] bg-black/[0.02] p-3 space-y-2.5">
-                      {phone && (
-                        <div className="space-y-2 pb-2.5 border-b border-black/[0.05]">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-neutral-700">验证旧号 {phone.slice(0, 3)}****{phone.slice(-4)}</span>
-                            {oldPhoneVerified && <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />已通过</span>}
-                          </div>
-                          {!oldPhoneVerified && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <input type="text" inputMode="numeric" maxLength={6} value={oldPhoneCode} onChange={(e) => setOldPhoneCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="旧号验证码"
-                                className="w-32 h-8 px-2.5 rounded-lg border border-neutral-200 bg-white text-xs tabular-nums tracking-widest outline-none focus:border-emerald-600" />
-                              <button type="button" disabled={oldPhoneCountdown > 0 || isSendingOldCode} onClick={handleSendOldCode} className="h-8 px-2.5 rounded-lg bg-black/[0.05] text-neutral-700 text-[11px] font-bold disabled:opacity-40 cursor-pointer">{isSendingOldCode ? '发送中' : oldPhoneCountdown > 0 ? oldPhoneCountdown + 's' : '获取旧号验证码'}</button>
-                              <button type="button" disabled={isVerifyingOld} onClick={handleVerifyOldPhone} className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[11px] font-bold disabled:opacity-40 cursor-pointer">{isVerifyingOld ? '校验中' : '验证旧号'}</button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <div className={`space-y-2 ${phone && !oldPhoneVerified ? 'opacity-40 pointer-events-none' : ''}`}>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <input type="tel" inputMode="numeric" maxLength={11} value={bindPhone} onChange={(e) => setBindPhone(e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="11 位新手机号"
-                            className="w-40 h-8 px-2.5 rounded-lg border border-neutral-200 bg-white text-xs tabular-nums outline-none focus:border-emerald-600" />
-                          <button type="button" disabled={bindCountdown > 0 || isSendingBind} onClick={handleSendBindCode} className="h-8 px-2.5 rounded-lg bg-black/[0.05] text-neutral-700 text-[11px] font-bold disabled:opacity-40 cursor-pointer">{isSendingBind ? '发送中' : bindCountdown > 0 ? bindCountdown + 's' : '获取验证码'}</button>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <input type="text" inputMode="numeric" maxLength={6} value={bindCode} onChange={(e) => setBindCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 位验证码"
-                            className="w-32 h-8 px-2.5 rounded-lg border border-neutral-200 bg-white text-xs tabular-nums tracking-widest outline-none focus:border-emerald-600" />
-                          <button type="button" disabled={isBinding} onClick={handleConfirmBind} className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[11px] font-bold disabled:opacity-40 cursor-pointer">{isBinding ? '校验中' : '确认绑定'}</button>
-                          <button type="button" onClick={closeBindPanel} className="ml-auto text-[11px] text-neutral-400 hover:text-neutral-700 cursor-pointer">取消</button>
-                        </div>
-                      </div>
-                      <p className="text-[10px] text-neutral-400 border-t border-black/[0.05] pt-2">验证码 5 分钟有效 · 一个手机号仅可绑定一个账号</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 性别 */}
-                <div className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold text-neutral-900">性别称谓</span>
-                    <div className="text-[10px] text-neutral-400 mt-0.5">影响称呼与推荐</div>
-                  </div>
-                  <div className="inline-flex rounded-full bg-black/[0.03] ring-1 ring-black/[0.04] p-1 shrink-0">
-                    {[{ val: 'secret', label: '保密' }, { val: 'male', label: '先生' }, { val: 'female', label: '女士' }].map((item) => (
-                      <button key={item.val} type="button" onClick={() => setGender(item.val as any)}
-                        className={`h-7 px-3 rounded-full text-[11px] font-bold cursor-pointer transition ${gender === item.val ? 'bg-white text-neutral-900 shadow-[0_1px_2px_rgba(17,24,39,0.1)] ring-1 ring-black/[0.06]' : 'text-neutral-500 hover:text-neutral-900'}`}>
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 生日 */}
-                <div className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <label className="text-xs font-bold text-neutral-900" htmlFor="birthday">生日</label>
-                    <div className="text-[10px] text-neutral-400 mt-0.5">生日当月赠送甜品券</div>
-                  </div>
-                  <div className="relative w-full max-w-[200px] shrink-0">
-                    <input id="birthday" type="text" value={birthday} onChange={(e) => setBirthday(e.target.value)} placeholder="YYYY/MM/DD"
-                      className="w-full h-9 px-3 pr-8 rounded-lg bg-white ring-1 ring-black/[0.06] focus:ring-2 focus:ring-emerald-600/35 focus:border-emerald-600 border border-transparent outline-none text-xs text-neutral-900 transition tabular-nums placeholder:text-neutral-300" />
-                    <Calendar className="w-3.5 h-3.5 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                </div>
-                </div>
-              </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: 就餐偏好 */}
-          {activeTab === 'tab-preference' && (
-            <div className="animate-in fade-in duration-normal space-y-2.5" id="tab-panel-preference">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-brand-emerald" />
-                  <h3 className="text-base font-black tracking-tight text-neutral-900">就餐偏好</h3>
-                </div>
-                <button type="button" onClick={handleResetToInitial} className="h-7 px-2.5 rounded-lg bg-white ring-1 ring-black/[0.06] hover:bg-black/[0.03] hover:ring-black/[0.12] text-[11px] font-bold text-neutral-500 cursor-pointer transition">恢复默认</button>
+                )}
               </div>
 
-              {/* 区块 1：默认辣度 */}
-              <div className="rounded-xl bg-black/[0.02] ring-1 ring-black/[0.04] p-3">
-                <div className="flex items-baseline justify-between mb-2.5">
-                  <span className="text-[11px] font-black text-neutral-500 tracking-wide">默认辣度</span>
-                  <span className="text-[10px] text-neutral-400">下单自动带入</span>
+              {/* 性别称谓 */}
+              <div className="py-3.5 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-[#0f172a] block">性别称谓</span>
+                  <span className="text-[11px] text-neutral-400">影响取餐叫号与称呼</span>
                 </div>
-                <div className="inline-flex flex-wrap gap-1.5 p-1 rounded-full bg-black/[0.03] ring-1 ring-black/[0.04]">
-                  {[{ id: 'none', label: '免辣' }, { id: 'mild', label: '微辣' }, { id: 'medium', label: '中辣' }, { id: 'hot', label: '重辣' }].map((item) => {
-                    const isSel = spiciness === item.id;
-                    return (
-                      <button key={item.id} type="button" onClick={() => setSpiciness(item.id as any)}
-                        className={`h-7 px-3.5 rounded-full text-[11px] font-bold cursor-pointer transition ${
-                          isSel
-                            ? 'bg-white text-emerald-700 ring-1 ring-black/[0.06] shadow-[0_1px_2px_rgba(17,24,39,0.1)]'
-                            : 'text-neutral-500 hover:text-neutral-900'
-                        }`}>
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 区块 2：下单开关 */}
-              <div className="rounded-xl bg-black/[0.02] ring-1 ring-black/[0.04] px-3 pb-1">
-                <div className="flex items-baseline justify-between pt-3">
-                  <span className="text-[11px] font-black text-neutral-500 tracking-wide">下单偏好</span>
-                  <span className="text-[10px] text-neutral-400 tabular-nums">已开启 {[ecoMode, autoCoupons, silentCall].filter(Boolean).length}/3</span>
-                </div>
-              <div className="divide-y divide-black/[0.04]">
-                {[
-                  { icon: Leaf, title: '低碳就餐（免一次性餐具）', sub: '每次点单 +5 积分', val: ecoMode, set: () => setEcoMode(!ecoMode), tone: 'bg-emerald-50 text-emerald-700' },
-                  { icon: Tag, title: '自动选用最优满减券', sub: '省心立减', val: autoCoupons, set: () => setAutoCoupons(!autoCoupons), tone: 'bg-sky-50 text-sky-700' },
-                  { icon: BellOff, title: '免电话打扰', sub: '仅短信或雷达提醒', val: silentCall, set: () => setSilentCall(!silentCall), tone: 'bg-amber-50 text-amber-700' }
-                ].map((row) => {
-                  const Icon = row.icon;
-                  return (
-                    <div key={row.title} className="flex items-center justify-between gap-3 py-2.5">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${row.tone}`}><Icon className="w-4 h-4" /></div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-neutral-900 truncate">{row.title}</div>
-                          <div className="text-[10px] text-neutral-400 mt-0.5">{row.sub}</div>
-                        </div>
-                      </div>
-                      <button type="button" onClick={row.set} aria-label={row.title} aria-pressed={!!row.val}
-                        className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer shrink-0 ${row.val ? 'bg-emerald-600' : 'bg-neutral-300'}`}>
-                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-[0_1px_2px_rgba(17,24,39,0.25)] transition-transform ${row.val ? 'translate-x-4' : 'translate-x-0'}`} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              </div>
-
-              {/* 区块 3：忌口标签 */}
-              <div className="rounded-xl bg-black/[0.02] ring-1 ring-black/[0.04] p-3">
-                <div className="flex items-baseline justify-between mb-2.5">
-                  <span className="text-[11px] font-black text-neutral-500 tracking-wide">忌口标签</span>
-                  <span className="text-[10px] text-neutral-400 tabular-nums">已选 {dietaryPresets.filter((t) => dietaryNotes.includes(t)).length} 项</span>
-                </div>
-                <div className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-black/[0.03] ring-1 ring-black/[0.04] mb-2.5 max-w-full">
-                  {dietaryPresets.map((tag) => {
-                    const isIncluded = dietaryNotes.includes(tag);
-                    return (
-                      <button key={tag} type="button" onClick={() => handleToggleDietaryTag(tag)} aria-pressed={isIncluded}
-                        className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold cursor-pointer transition ${
-                          isIncluded
-                            ? 'bg-white text-neutral-900 ring-1 ring-black/[0.06] shadow-[0_1px_2px_rgba(17,24,39,0.1)]'
-                            : 'text-neutral-500 hover:bg-white/70 hover:text-neutral-900'
-                        }`}>
-                        {tag}
-                      </button>
-                    );
-                  })}
-                </div>
-                <input id="dietary-notes" type="text" value={dietaryNotes} onChange={(e) => setDietaryNotes(e.target.value)} placeholder="其他过敏原或备注"
-                  className="block w-full max-w-[320px] h-9 px-3 rounded-lg bg-white ring-1 ring-black/[0.06] focus:ring-2 focus:ring-emerald-600/35 focus:border-emerald-600 border border-transparent outline-none text-xs text-neutral-900 transition placeholder:text-neutral-300" />
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: 常用地址 */}
-          {activeTab === 'tab-address' && (
-            <div className="animate-in fade-in duration-normal" id="tab-panel-address">
-              <div className="flex items-center justify-between pb-3 border-b border-black/[0.05]">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-brand-emerald" />
-                  <h3 className="text-base font-black tracking-tight text-neutral-900">常用地址 · {addresses.length} 处</h3>
-                </div>
-                <button type="button" id="btn-add-address" onClick={() => { setIsAddingAddress(true); setEditingAddress(null); setAddrName(nickname); setAddrPhone(phone); setAddrLocation(''); setAddrHouseNumber(''); setAddrDetail(''); setAddrRemarks(''); setAddrLat(31.2435); setAddrLng(121.469); }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/[0.05] hover:bg-black/[0.09] ring-1 ring-black/[0.07] text-neutral-700 text-xs font-bold transition cursor-pointer"><Plus className="w-3.5 h-3.5" />新增地址</button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 py-3">
-                <div className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-black/[0.03] ring-1 ring-black/[0.04]">
-                  {([
-                    { key: 'all', label: '全部' }, { key: '公司', label: '写字楼' }, { key: '家', label: '住宅' }, { key: '学校', label: '高校' }, { key: '其他', label: '临时' }
-                  ] as const).map((item) => (
-                    <button key={item.key} type="button" onClick={() => setAddressTagFilter(item.key as any)} aria-pressed={addressTagFilter === item.key}
-                      className={`h-7 px-2.5 rounded-lg text-[11px] cursor-pointer transition ${
-                        addressTagFilter === item.key
-                          ? 'bg-white text-neutral-900 font-bold ring-1 ring-black/[0.06] shadow-[0_1px_2px_rgba(17,24,39,0.1)]'
-                          : 'text-neutral-500 font-semibold hover:bg-white/70 hover:text-neutral-900'
-                      }`}>
+                <div className="inline-flex rounded-xl bg-neutral-100 p-1 shrink-0">
+                  {[
+                    { val: 'secret', label: '保密' },
+                    { val: 'male', label: '先生' },
+                    { val: 'female', label: '女士' }
+                  ].map((item) => (
+                    <button
+                      key={item.val}
+                      type="button"
+                      onClick={() => setGender(item.val as 'secret' | 'male' | 'female')}
+                      className={`h-8 px-3 rounded-lg text-xs font-bold cursor-pointer transition ${
+                        gender === item.val
+                          ? 'bg-white text-[#0f172a] shadow-xs'
+                          : 'text-neutral-500 hover:text-[#0f172a]'
+                      }`}
+                    >
                       {item.label}
                     </button>
                   ))}
                 </div>
-                <div className="relative ml-auto w-40">
-                  <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input type="text" value={addressSearchQuery} onChange={(e) => setAddressSearchQuery(e.target.value)} placeholder="搜索地址..."
-                    className="w-full h-8 pl-8 pr-3 rounded-lg bg-white ring-1 ring-black/[0.06] border border-transparent text-xs outline-none focus:ring-2 focus:ring-emerald-600/35 focus:border-emerald-600 placeholder:text-neutral-300" />
+              </div>
+
+              {/* 生日日期（通栏纵排对齐） */}
+              <div className="py-3.5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <label className="text-xs font-bold text-[#0f172a] block" htmlFor="birthday">
+                    生日日期
+                  </label>
+                  <span className="text-[11px] text-neutral-400">生日当月享专属甜品礼遇</span>
+                </div>
+                <input
+                  id="birthday"
+                  type="date"
+                  value={birthday}
+                  onChange={(e) => setBirthday(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl bg-neutral-50 border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#0f172a] transition tabular-nums"
+                />
+              </div>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ==================== TAB 2: 就餐偏好（收拢为 2 张卡：口味与偏好主卡 + 按需忌口备注卡） ==================== */}
+        {activeTab === 'tab-preference' && (
+          <div className="space-y-3" id="tab-panel-preference">
+            <SectionCard divided>
+              <div className="py-3.5">
+                <SectionHeader
+                  title="默认辣度与下单偏好"
+                  subtitle="点餐结算时自动带入口味、餐具与卡券策略"
+                  right={
+                    <button
+                      type="button"
+                      onClick={handleResetToInitial}
+                      className="h-8 px-2.5 rounded-lg bg-neutral-100 hover:bg-neutral-200/70 text-[11px] font-bold text-neutral-600 inline-flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>恢复默认</span>
+                    </button>
+                  }
+                />
+                <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-neutral-100 mt-3">
+                  {[
+                    { id: 'none', label: '免辣', dot: 'bg-neutral-400', activeText: 'text-[#0f172a]' },
+                    { id: 'mild', label: '微辣', dot: 'bg-emerald-500', activeText: 'text-emerald-700' },
+                    { id: 'medium', label: '中辣', dot: 'bg-amber-500', activeText: 'text-amber-700' },
+                    { id: 'hot', label: '重辣', dot: 'bg-rose-500', activeText: 'text-rose-600' }
+                  ].map((item) => {
+                    const isSel = spiciness === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSpiciness(item.id as 'none' | 'mild' | 'medium' | 'hot')}
+                        className={`h-9 rounded-lg text-xs font-bold cursor-pointer transition flex items-center justify-center gap-1.5 ${
+                          isSel
+                            ? `bg-white ${item.activeText} shadow-xs ring-1 ring-black/[0.05]`
+                            : 'text-neutral-500 hover:text-[#0f172a]'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full transition-opacity ${item.dot} ${
+                            isSel ? 'opacity-100' : 'opacity-45'
+                          }`}
+                        />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {(isAddingAddress || editingAddress) && (
-                <div className="mb-3 p-4 rounded-2xl ring-1 ring-black/[0.07] bg-black/[0.02] space-y-3 animate-in fade-in duration-fast">
-                  <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.05]">
-                    <span className="text-xs font-bold text-neutral-900">{editingAddress ? '编辑送达地址' : '录入新地址'}</span>
-                    <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={handleSimulateGpsAutofill} className="text-[11px] px-2.5 py-1 rounded-full bg-white ring-1 ring-black/[0.07] text-neutral-600 cursor-pointer flex items-center gap-1"><Crosshair className="w-3 h-3" />GPS 演示</button>
-                      <button type="button" onClick={() => { setIsAddingAddress(false); setEditingAddress(null); }} className="text-neutral-400 hover:text-neutral-700 cursor-pointer p-1"><X className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {[
-                      { label: '联系人', val: addrName, set: setAddrName, ph: '收货人姓名' },
-                      { label: '手机号', val: addrPhone, set: setAddrPhone, ph: '联系电话' },
-                      { label: '建筑/商圈', val: addrLocation, set: setAddrLocation, ph: '例: 静安大悦城南座' },
-                      { label: '门牌号', val: addrHouseNumber, set: setAddrHouseNumber, ph: '例: 南座8楼801室' },
-                      { label: '详细街道', val: addrDetail, set: setAddrDetail, ph: '例: 西藏北路166号' },
-                      { label: '交接备注', val: addrRemarks, set: setAddrRemarks, ph: '例: 放前台外卖架' }
-                    ].map((f) => (
-                      <div key={f.label}>
-                        <label className="block text-[11px] font-bold text-neutral-600 mb-1">{f.label}</label>
-                        <input type="text" value={f.val} onChange={(e) => f.set(e.target.value)} placeholder={f.ph}
-                          className="w-full h-8 px-3 rounded-lg border border-neutral-200 bg-white text-xs outline-none focus:border-emerald-600" />
+              {[
+                {
+                  icon: Leaf,
+                  title: '低碳就餐（免一次性餐具）',
+                  sub: '每次环保点单额外获赠 +5 积分',
+                  val: ecoMode,
+                  set: () => setEcoMode(!ecoMode),
+                  tone: 'bg-emerald-50 text-emerald-700'
+                },
+                {
+                  icon: Tag,
+                  title: '自动选用最优满减券',
+                  sub: '结算时自动计算最大优惠组合',
+                  val: autoCoupons,
+                  set: () => setAutoCoupons(!autoCoupons),
+                  tone: 'bg-sky-50 text-[#0284c7]'
+                },
+                {
+                  icon: BellOff,
+                  title: '免电话打扰',
+                  sub: '送达时仅通过雷达推送或短信通知',
+                  val: silentCall,
+                  set: () => setSilentCall(!silentCall),
+                  tone: 'bg-amber-50 text-amber-700'
+                }
+              ].map((row) => {
+                const Icon = row.icon;
+                return (
+                  <div key={row.title} className="py-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${row.tone}`}
+                      >
+                        <Icon className="w-4 h-4" />
                       </div>
-                    ))}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-[#0f172a] truncate">{row.title}</div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5 truncate">{row.sub}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={row.set}
+                      aria-label={row.title}
+                      aria-pressed={!!row.val}
+                      className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer shrink-0 ${
+                        row.val ? 'bg-emerald-600' : 'bg-neutral-300'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-xs transition-transform ${
+                          row.val ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-bold text-neutral-600">类别</span>
-                    <div className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-black/[0.03] ring-1 ring-black/[0.04]">
+                );
+              })}
+            </SectionCard>
+
+            <SectionCard>
+              <SectionHeader
+                title="忌口与过敏备注"
+                subtitle="自定义后厨备注或展开常用预设快选"
+                right={
+                  <div className="flex items-center gap-2">
+                    {dietaryNotes !== '无特殊过敏原' && dietaryNotes.trim() !== '' && (
+                      <button
+                        type="button"
+                        onClick={() => setDietaryNotes('无特殊过敏原')}
+                        className="text-[11px] font-semibold text-neutral-500 hover:text-[#0f172a] underline underline-offset-2 cursor-pointer"
+                      >
+                        清空
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsDietaryPresetsOpen((prev) => !prev)}
+                      aria-expanded={isDietaryPresetsOpen}
+                      className="h-7 px-2 rounded-lg bg-neutral-100 hover:bg-neutral-200/70 text-[11px] font-bold text-[#0f172a] inline-flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <span>常用忌口</span>
+                      <ChevronDown
+                        className={`w-3 h-3 text-neutral-500 transition-transform ${
+                          isDietaryPresetsOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                  </div>
+                }
+              />
+
+              {isDietaryPresetsOpen && (
+                <div className="flex flex-wrap gap-1.5 mt-3 animate-in fade-in">
+                  {dietaryPresets.map((tag) => {
+                    const isIncluded = dietaryNotes.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => handleToggleDietaryTag(tag)}
+                        aria-pressed={isIncluded}
+                        className={`h-8 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition inline-flex items-center gap-1 ${
+                          isIncluded
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-600/50'
+                            : 'bg-neutral-50 text-neutral-600 border border-black/[0.06] hover:bg-neutral-100'
+                        }`}
+                      >
+                        {isIncluded && (
+                          <Check className="w-3 h-3 text-emerald-600" strokeWidth={2.8} />
+                        )}
+                        <span>{tag}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <input
+                id="dietary-notes"
+                type="text"
+                value={dietaryNotes}
+                onChange={(e) => setDietaryNotes(e.target.value)}
+                placeholder="输入其他过敏原或厨房备注..."
+                className="mt-3 w-full h-10 px-3 rounded-xl bg-neutral-50 border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#0f172a] transition placeholder:text-neutral-400"
+              />
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ==================== TAB 3: 常用地址（精简顶部搜索按需展开 + 示例快填收拢下拉） ==================== */}
+        {activeTab === 'tab-address' && (
+          <div className="space-y-3" id="tab-panel-address">
+            <SectionCard className="!p-3.5 space-y-2.5">
+              <SectionHeader
+                title={`常用地址 · ${addresses.length} 处`}
+                subtitle="支持标签筛选与一键切换默认送达"
+                right={
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddressSearchOpen((prev) => !prev)}
+                      aria-expanded={isAddressSearchOpen}
+                      aria-label="搜索地址"
+                      title="关键词搜索地址"
+                      className={`w-9 h-9 rounded-xl border flex items-center justify-center cursor-pointer transition ${
+                        isAddressSearchOpen || addressSearchQuery.trim()
+                          ? 'bg-emerald-50 border-emerald-600/40 text-emerald-700'
+                          : 'bg-neutral-50 border-black/[0.06] text-neutral-600 hover:bg-neutral-100'
+                      }`}
+                    >
+                      <Search className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      id="btn-add-address"
+                      onClick={() => {
+                        setIsAddingAddress(true);
+                        setEditingAddress(null);
+                        setIsPresetMenuOpen(false);
+                        setAddrName(nickname);
+                        setAddrPhone(phone);
+                        setAddrLocation('');
+                        setAddrHouseNumber('');
+                        setAddrDetail('');
+                        setAddrRemarks('');
+                        setAddrLat(31.2435);
+                        setAddrLng(121.469);
+                      }}
+                      className="h-9 px-3 rounded-xl bg-[#0f172a] hover:bg-neutral-800 text-white text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>新增</span>
+                    </button>
+                  </div>
+                }
+              />
+
+              {(isAddressSearchOpen || addressSearchQuery.trim().length > 0) && (
+                <div className="relative animate-in fade-in">
+                  <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={addressSearchQuery}
+                    onChange={(e) => setAddressSearchQuery(e.target.value)}
+                    placeholder="搜索联系人、建筑或街道..."
+                    className="w-full h-9 pl-8 pr-8 rounded-xl bg-neutral-50 border border-black/[0.06] text-xs outline-none focus:bg-white focus:border-emerald-600 placeholder:text-neutral-400"
+                  />
+                  {addressSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setAddressSearchQuery('')}
+                      aria-label="清空搜索"
+                      className="w-6 h-6 rounded-full text-neutral-400 hover:text-neutral-700 flex items-center justify-center absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-neutral-100">
+                {(
+                  [
+                    { key: 'all', label: '全部' },
+                    { key: '公司', label: '写字楼' },
+                    { key: '家', label: '住宅' },
+                    { key: '学校', label: '高校' },
+                    { key: '其他', label: '临时' }
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setAddressTagFilter(item.key)}
+                    aria-pressed={addressTagFilter === item.key}
+                    className={`h-8 rounded-lg text-xs cursor-pointer transition ${
+                      addressTagFilter === item.key
+                        ? 'bg-white text-[#0f172a] font-bold shadow-xs'
+                        : 'text-neutral-500 font-semibold hover:text-[#0f172a]'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+
+            {(isAddingAddress || editingAddress) && (
+              <SectionCard className="!border-emerald-600/35 !shadow-[0_4px_16px_-6px_rgba(16,185,129,0.18)] space-y-3 animate-in fade-in">
+                <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.06]">
+                  <span className="text-xs font-extrabold text-[#0f172a]">
+                    {editingAddress ? '编辑送达地址' : '录入新地址'}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {/* 收拢「GPS填充」与「商圈快填」至单一下拉菜单 */}
+                    <div ref={presetMenuRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsPresetMenuOpen((prev) => !prev)}
+                        aria-expanded={isPresetMenuOpen}
+                        className="h-8 px-2.5 rounded-lg bg-neutral-100 hover:bg-neutral-200/70 text-[#0f172a] text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
+                      >
+                        <Compass className="w-3 h-3 text-emerald-600" />
+                        <span>示例快填</span>
+                        <ChevronDown
+                          className={`w-3 h-3 text-neutral-500 transition-transform ${
+                            isPresetMenuOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {isPresetMenuOpen && (
+                        <div className="absolute right-0 top-[calc(100%+6px)] w-60 rounded-xl bg-white border border-black/[0.08] shadow-[0_14px_30px_-8px_rgba(15,23,42,0.2)] p-1.5 z-30 space-y-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleSimulateGpsAutofill();
+                              setIsPresetMenuOpen(false);
+                            }}
+                            className="w-full px-2.5 py-2 rounded-lg hover:bg-emerald-50 text-left flex items-center gap-2 cursor-pointer transition"
+                          >
+                            <Crosshair className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-[11px] font-bold text-[#0f172a]">
+                                GPS 演示定位填充
+                              </div>
+                              <div className="text-[10px] text-neutral-400">生成随机示例坐标</div>
+                            </div>
+                          </button>
+                          <div className="my-1 border-t border-black/[0.06]" />
+                          {PRESET_DISTRICT_ADDRESSES.map((preset, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                handleApplyPreset(preset);
+                                setIsPresetMenuOpen(false);
+                              }}
+                              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-neutral-50 text-left flex items-center justify-between gap-2 cursor-pointer transition"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-[11px] font-semibold text-[#0f172a] truncate">
+                                  {preset.address}
+                                </div>
+                                <div className="text-[10px] text-neutral-400 truncate">
+                                  {preset.detail}
+                                </div>
+                              </div>
+                              <span className="text-[10px] text-neutral-400 shrink-0">
+                                {preset.tag}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingAddress(false);
+                        setEditingAddress(null);
+                        setIsPresetMenuOpen(false);
+                      }}
+                      aria-label="关闭地址编辑"
+                      className="w-8 h-8 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700 flex items-center justify-center cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { label: '联系人', val: addrName, set: setAddrName, ph: '收货人姓名', span: false },
+                    { label: '手机号', val: addrPhone, set: setAddrPhone, ph: '联系电话', span: false },
+                    { label: '建筑/商圈', val: addrLocation, set: setAddrLocation, ph: '例: 静安大悦城南座', span: true },
+                    { label: '详细街道', val: addrDetail, set: setAddrDetail, ph: '例: 西藏北路166号', span: true },
+                    { label: '门牌号', val: addrHouseNumber, set: setAddrHouseNumber, ph: '例: 南座8楼801室', span: false },
+                    { label: '交接备注', val: addrRemarks, set: setAddrRemarks, ph: '例: 放前台外卖架', span: false }
+                  ].map((f) => (
+                    <div key={f.label} className={f.span ? 'col-span-2' : ''}>
+                      <label className="block text-[11px] font-bold text-neutral-600 mb-1">
+                        {f.label}
+                      </label>
+                      <input
+                        type="text"
+                        value={f.val}
+                        onChange={(e) => f.set(e.target.value)}
+                        placeholder={f.ph}
+                        className="w-full h-9 px-3 rounded-lg border border-black/[0.08] bg-neutral-50 focus:bg-white focus:border-emerald-600 text-xs outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-neutral-600">地址标签</span>
+                    <div className="inline-flex gap-1 p-1 rounded-xl bg-neutral-100">
                       {(['公司', '家', '学校', '其他'] as const).map((tag) => (
-                        <button key={tag} type="button" onClick={() => setAddrTag(tag)}
-                          className={`h-7 px-3 rounded-lg text-[11px] cursor-pointer transition ${addrTag === tag ? 'bg-white text-neutral-900 font-bold ring-1 ring-black/[0.06] shadow-[0_1px_2px_rgba(17,24,39,0.1)]' : 'text-neutral-500 font-semibold hover:bg-white/70'}`}>{tag}</button>
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setAddrTag(tag)}
+                          className={`h-7 px-3 rounded-lg text-xs cursor-pointer transition ${
+                            addrTag === tag
+                              ? 'bg-white text-[#0f172a] font-bold shadow-xs'
+                              : 'text-neutral-500 font-semibold'
+                          }`}
+                        >
+                          {tag}
+                        </button>
                       ))}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] text-neutral-400 flex items-center gap-1"><Compass className="w-3 h-3" />快速导入</span>
-                    {PRESET_DISTRICT_ADDRESSES.map((preset, idx) => (
-                      <button key={idx} type="button" onClick={() => handleApplyPreset(preset)} title={preset.address}
-                        className="text-[10px] px-2 py-0.5 rounded-full bg-white ring-1 ring-black/[0.07] text-neutral-500 hover:text-emerald-700 cursor-pointer truncate max-w-[120px]">{preset.address}</button>
-                    ))}
-                  </div>
-                  {addrLat && addrLng && <div className="text-[10px] text-neutral-500 flex items-center gap-1.5 tabular-nums"><Navigation className="w-3 h-3 text-emerald-600" />GPS {addrLat.toFixed(4)}°N, {addrLng.toFixed(4)}°E</div>}
-                  <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-black/[0.05]">
-                    <button type="button" onClick={() => { setIsAddingAddress(false); setEditingAddress(null); }} className="h-8 px-4 rounded-full bg-white ring-1 ring-black/[0.07] text-neutral-700 text-xs font-bold cursor-pointer">取消</button>
-                    <button type="button" id="btn-confirm-save-addr" onClick={handleSaveAddress} className="h-8 px-4 rounded-full bg-emerald-600 text-white text-xs font-bold cursor-pointer">保存地址</button>
-                  </div>
-                </div>
-              )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="address-list-container">
-                {filteredAddresses.map((addr, idx) => {
-                  const isDef = !!addr.isDefault;
-                  return (
-                    <div key={addr.id} id={`address-card-${addr.id}`} className={`rounded-2xl p-3.5 transition flex flex-col gap-2 bg-white/72 backdrop-blur-xl shadow-[0_12px_32px_-16px_rgba(17,24,39,0.3),inset_0_1px_0_rgba(255,255,255,0.85)] ${isDef ? 'ring-1 ring-emerald-500/40 hover:bg-white/90' : 'ring-1 ring-black/[0.07] hover:bg-white/90'}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`bg-black/[0.05] ring-1 ring-black/[0.05] px-1.5 py-0.2 rounded text-[11px] font-bold text-neutral-600 ${addr.tag === '家' ? '!bg-emerald-50 !text-emerald-700' : ''}`}>{addr.tag}</span>
-                          {isDef && <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-0.5"><Check className="w-3 h-3 stroke-[3]" />默认</span>}
+                  {addrLat && addrLng && (
+                    <div className="text-[10px] text-neutral-400 flex items-center gap-1 tabular-nums">
+                      <Navigation className="w-3 h-3 text-emerald-600" />
+                      <span>
+                        {addrLat.toFixed(3)}°N, {addrLng.toFixed(3)}°E
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-black/[0.06]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingAddress(false);
+                      setEditingAddress(null);
+                      setIsPresetMenuOpen(false);
+                    }}
+                    className="h-9 px-4 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-bold cursor-pointer"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-confirm-save-addr"
+                    onClick={handleSaveAddress}
+                    className="h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-bold cursor-pointer"
+                  >
+                    确认写入草稿
+                  </button>
+                </div>
+              </SectionCard>
+            )}
+
+            <div className="space-y-2.5" id="address-list-container">
+              {filteredAddresses.map((addr) => {
+                const isDef = !!addr.isDefault;
+                const isConfirmingDelete = confirmDeleteAddrId === addr.id;
+                return (
+                  <article
+                    key={addr.id}
+                    id={`address-card-${addr.id}`}
+                    className={`bg-white rounded-2xl p-4 border transition ${
+                      isDef
+                        ? 'border-emerald-600/40 shadow-[0_2px_12px_-6px_rgba(16,185,129,0.2)]'
+                        : 'border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.06)]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 min-w-0">
+                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            isDef ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-700'
+                          }`}
+                        >
+                          <MapPin className="w-4 h-4" />
                         </div>
-                        <span className="text-[10px] text-neutral-400 tabular-nums">{addr.latitude ? addr.latitude.toFixed(2) + '°N' : ''}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-extrabold text-[#0f172a] truncate">
+                              {addr.address}
+                            </span>
+                            <span className="text-[11px] font-semibold text-neutral-400">
+                              · {addr.tag}
+                            </span>
+                            {isDef && (
+                              <span className="text-[11px] font-bold text-emerald-700 inline-flex items-center gap-0.5">
+                                <Check className="w-3 h-3" strokeWidth={3} />
+                                默认
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-neutral-500 mt-1 leading-snug">
+                            {addr.detail}
+                            {addr.houseNumber ? ` · ${addr.houseNumber}` : ''}
+                          </p>
+                          <p className="text-[11px] text-neutral-400 mt-1 tabular-nums">
+                            {addr.name} · {addr.phone}
+                          </p>
+                          {addr.remarks && (
+                            <p className="mt-1.5 px-2 py-1 rounded-lg bg-neutral-50 border border-black/[0.04] text-[11px] text-neutral-500 leading-snug">
+                              备注：{addr.remarks}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-black/[0.05] flex items-center justify-center text-neutral-700 flex-shrink-0"><MapPin className="w-4 h-4" /></div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-neutral-900 truncate">{addr.address}</div>
-                          <div className="text-[11px] text-neutral-500 mt-0.5">{addr.detail}{addr.houseNumber ? ' · ' + addr.houseNumber : ''}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between pt-2 border-t border-black/[0.05]">
-                        <span className="text-[11px] text-neutral-500 truncate"><span className="font-bold text-neutral-900">{addr.name}</span> · <span className="tabular-nums">{addr.phone}</span></span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {!isDef && <button type="button" onClick={() => handleSetDefaultAddress(addr.id)} className="text-[11px] px-1.5 py-0.2 rounded bg-black/[0.05] ring-1 ring-black/[0.05] text-neutral-600 hover:text-emerald-700 cursor-pointer">默认</button>}
-                          <button type="button" onClick={() => handleSimulateRadarCheck(addr)} className="w-7 h-7 rounded-full bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] flex items-center justify-center text-neutral-600 shadow-[0_1px_2px_rgba(17,24,39,0.05)] hover:bg-white/90 active:scale-95 transition cursor-pointer" title="雷达测距"><Crosshair className="w-3.5 h-3.5" /></button>
-                          <button type="button" onClick={() => handleCopyAddressInfo(addr)} className="w-7 h-7 rounded-full bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] flex items-center justify-center text-neutral-600 shadow-[0_1px_2px_rgba(17,24,39,0.05)] hover:bg-white/90 active:scale-95 transition cursor-pointer" title="复制"><Copy className="w-3.5 h-3.5" /></button>
-                          <button type="button" onClick={() => { setEditingAddress(addr); setIsAddingAddress(false); setAddrName(addr.name); setAddrPhone(addr.phone); setAddrTag(addr.tag); setAddrLocation(addr.address); setAddrHouseNumber(addr.houseNumber || ''); setAddrDetail(addr.detail); setAddrRemarks(addr.remarks || ''); setAddrLat(addr.latitude); setAddrLng(addr.longitude); }} className="w-7 h-7 rounded-full bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] flex items-center justify-center text-neutral-600 shadow-[0_1px_2px_rgba(17,24,39,0.05)] hover:bg-white/90 active:scale-95 transition cursor-pointer" title="编辑"><Edit2 className="w-3.5 h-3.5" /></button>
-                          <button type="button" onClick={() => { if (window.confirm(`确定移除常用地址【${addr.address}】？`)) handleDeleteAddress(addr.id); }} className="w-7 h-7 rounded-full bg-white/72 backdrop-blur-md ring-1 ring-black/[0.07] flex items-center justify-center text-neutral-400 hover:text-rose-600 shadow-[0_1px_2px_rgba(17,24,39,0.05)] hover:bg-white/90 active:scale-95 transition cursor-pointer" title="删除"><Trash2 className="w-3.5 h-3.5" /></button>
-                        </div>
+
+                      {/* 轻量辅助动作收纳至卡片右上角，避免底部按钮过密 */}
+                      <div className="flex items-center gap-0.5 shrink-0 -mr-1 -mt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleSimulateRadarCheck(addr)}
+                          title="雷达测距"
+                          aria-label="雷达测距"
+                          className="w-8 h-8 rounded-lg hover:bg-neutral-100 text-neutral-500 flex items-center justify-center cursor-pointer transition"
+                        >
+                          <Crosshair className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyAddressInfo(addr)}
+                          title="复制地址"
+                          aria-label="复制地址"
+                          className="w-8 h-8 rounded-lg hover:bg-neutral-100 text-neutral-500 flex items-center justify-center cursor-pointer transition"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
-                <div onClick={() => { setIsAddingAddress(true); setEditingAddress(null); setAddrName(nickname); setAddrPhone(phone); setAddrLocation(''); setAddrHouseNumber(''); setAddrDetail(''); setAddrRemarks(''); setAddrLat(31.2435); setAddrLng(121.469); }}
-                  className="border-2 border-dashed border-neutral-300 hover:border-emerald-500 rounded-2xl flex flex-col items-center justify-center p-5 min-h-[130px] cursor-pointer group">
-                  <div className="w-8 h-8 rounded-lg bg-black/[0.05] flex items-center justify-center text-neutral-400 group-hover:bg-emerald-600 group-hover:text-white transition"><Plus className="w-4 h-4" /></div>
-                  <span className="text-xs font-semibold text-neutral-600 mt-2">新增送达地址</span>
-                </div>
-              </div>
+
+                    <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-black/[0.05]">
+                      {!isDef ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSetDefaultAddress(addr.id)}
+                          className="h-8 px-3 rounded-lg bg-neutral-100 hover:bg-neutral-200/70 text-neutral-700 text-[11px] font-bold cursor-pointer transition"
+                        >
+                          设为默认
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-emerald-700 font-semibold">
+                          当前优先送达
+                        </span>
+                      )}
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAddress(addr);
+                            setIsAddingAddress(false);
+                            setIsPresetMenuOpen(false);
+                            setAddrName(addr.name);
+                            setAddrPhone(addr.phone);
+                            setAddrTag(addr.tag);
+                            setAddrLocation(addr.address);
+                            setAddrHouseNumber(addr.houseNumber || '');
+                            setAddrDetail(addr.detail);
+                            setAddrRemarks(addr.remarks || '');
+                            setAddrLat(addr.latitude);
+                            setAddrLng(addr.longitude);
+                          }}
+                          title="编辑地址"
+                          aria-label="编辑地址"
+                          className="h-8 px-2.5 rounded-lg hover:bg-neutral-100 text-neutral-600 text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>编辑</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAddress(addr.id)}
+                          title={isConfirmingDelete ? '再次点击确认删除' : '删除地址'}
+                          aria-label={isConfirmingDelete ? '确认删除地址' : '删除地址'}
+                          className={`h-8 rounded-lg flex items-center justify-center cursor-pointer transition ${
+                            isConfirmingDelete
+                              ? 'px-2.5 bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-bold'
+                              : 'w-8 hover:bg-rose-50 text-neutral-400 hover:text-rose-600'
+                          }`}
+                        >
+                          {isConfirmingDelete ? '确认删除' : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
 
               {filteredAddresses.length === 0 && (
-                <div id="address-empty-state" className="flex flex-col items-center py-10 text-center">
+                <SectionCard className="flex flex-col items-center py-10 text-center">
                   <MapPin className="w-7 h-7 text-neutral-300 mb-2" />
-                  <span className="text-xs text-neutral-500 font-bold">未匹配到地址</span>
-                  <button type="button" onClick={() => { setAddressSearchQuery(''); setAddressTagFilter('all'); }} className="mt-2 text-[11px] text-emerald-700 font-bold cursor-pointer">重置筛选</button>
-                </div>
+                  <span className="text-xs text-neutral-600 font-bold">未匹配到符合条件的地址</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddressSearchQuery('');
+                      setAddressTagFilter('all');
+                    }}
+                    className="mt-2.5 h-9 px-3.5 rounded-lg bg-neutral-100 text-xs text-emerald-700 font-bold cursor-pointer"
+                  >
+                    重置筛选条件
+                  </button>
+                </SectionCard>
               )}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* TAB 4: 安全凭据 */}
-          {activeTab === 'tab-security' && (
-            <div className="animate-in fade-in duration-normal" id="tab-panel-security">
-              <div className="flex items-center justify-between pb-3 border-b border-black/[0.05]">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-brand-emerald" />
-                  <h3 className="text-base font-black tracking-tight text-neutral-900">安全凭据</h3>
-                </div>
-                <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />防御生效中</span>
-              </div>
-              <div className="divide-y divide-black/[0.05]">
-                <div className="flex items-center justify-between gap-4 py-3.5">
-                  <span className="text-xs font-bold text-neutral-900">云端唯一 UID</span>
-                  <span className="text-xs text-neutral-600 tabular-nums truncate max-w-[220px]">{cloudUid}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4 py-3.5">
-                  <span className="text-xs font-bold text-neutral-900">硬件签名令牌</span>
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-xs text-neutral-600 tabular-nums truncate max-w-[190px]">{hwToken}</span>
-                    <button type="button" onClick={() => { navigator.clipboard.writeText(hwToken); toast.info('复制成功', '硬件 Token 已复制到剪贴板'); }} className="p-1.5 rounded-full text-neutral-400 hover:text-neutral-900 hover:bg-black/[0.05] cursor-pointer" title="复制"><Copy className="w-3.5 h-3.5" /></button>
+        {/* ==================== TAB 4: 安全凭据（精简主视图 + 折叠技术明细） ==================== */}
+        {activeTab === 'tab-security' && (
+          <div className="space-y-3" id="tab-panel-security">
+            <SectionCard>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Lock className="w-4.5 h-4.5" />
                   </div>
-                </div>
-                <div className="flex items-center justify-between gap-4 py-3.5">
                   <div className="min-w-0">
-                    <div className="text-xs font-bold text-neutral-900">重新签发凭证</div>
-                    <div className="text-[11px] text-neutral-400 mt-0.5">更换设备或重装系统后使用</div>
+                    <div className="text-[13px] font-extrabold text-[#0f172a] leading-snug">
+                      端到端设备签名已就绪
+                    </div>
+                    <div className="text-[11px] text-neutral-400 mt-0.5 truncate">
+                      已守护 {boundDeviceCount} 台设备 · 多端档案加密校验中
+                    </div>
                   </div>
-                  <button type="button" id="reissue-key-btn" onClick={handleReissueKey} className="h-8 px-3.5 shrink-0 rounded-full bg-black/[0.05] hover:bg-black/[0.09] ring-1 ring-black/[0.07] text-[11px] font-bold text-neutral-800 cursor-pointer">重新签发</button>
                 </div>
+                <span className="text-[11px] font-bold text-emerald-700 inline-flex items-center gap-1 shrink-0">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  正常
+                </span>
               </div>
-            </div>
-          )}
+            </SectionCard>
 
-          {/* TAB 5: 财务对账 */}
-          {activeTab === 'tab-finance' && (
-            <div className="animate-in fade-in duration-normal" id="tab-panel-finance">
-              <div className="flex items-center justify-between pb-2">
+            <SectionCard divided>
+              <div className="py-3.5 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-brand-emerald" />
-                  <h3 className="text-base font-black tracking-tight text-neutral-900">财务对账</h3>
+                  <Smartphone className="w-4 h-4 text-neutral-400" />
+                  <span className="text-xs font-bold text-[#0f172a]">受信任绑定设备</span>
                 </div>
-                <span className="text-[10px] text-neutral-400">流水实时同步</span>
+                <span className="text-xs font-semibold text-neutral-600 tabular-nums">
+                  {boundDeviceCount} 台设备在线
+                </span>
               </div>
-              <div className="grid grid-cols-3 divide-x divide-black/[0.05] rounded-xl bg-black/[0.02] ring-1 ring-black/[0.04] py-2.5 max-w-[560px]">
-                <div className="px-3"><div className="text-[10px] text-neutral-400">可用余额</div><div className="text-lg font-extrabold text-neutral-900 leading-tight tabular-nums mt-0.5">¥{balance.toFixed(2)}</div></div>
-                <div className="px-3"><div className="text-[10px] text-neutral-400">尊享积分</div><div className="text-lg font-extrabold text-brand-emerald leading-tight tabular-nums mt-0.5">{points}</div></div>
-                <div className="px-3"><div className="text-[10px] text-neutral-400">待清算</div><div className="text-lg font-extrabold text-neutral-400 leading-tight tabular-nums mt-0.5">¥0.00</div></div>
+
+              <div className="py-3.5 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-[#0f172a] flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-neutral-500" />
+                    <span>重新签发凭证</span>
+                  </div>
+                  <div className="text-[11px] text-neutral-400 mt-0.5">
+                    更换设备或重置本地状态后使用
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  id="reissue-key-btn"
+                  onClick={handleReissueKey}
+                  className="h-9 px-3.5 shrink-0 rounded-xl bg-neutral-100 hover:bg-neutral-200/70 text-xs font-bold text-[#0f172a] cursor-pointer transition"
+                >
+                  重新签发
+                </button>
               </div>
-              <div className="flex flex-wrap gap-1 p-1 rounded-xl bg-black/[0.03] ring-1 ring-black/[0.04] my-3 w-fit max-w-full">
-                {[{ key: 'all', label: '全部' }, { key: 'recharge', label: '充值' }, { key: 'expense', label: '扣款' }, { key: 'points', label: '积分' }].map((f) => (
-                  <button key={f.key} type="button" onClick={() => setFinanceFilter(f.key as any)} aria-pressed={financeFilter === f.key}
-                    className={`h-7 px-3 rounded-lg text-[11px] cursor-pointer transition ${
-                      financeFilter === f.key
-                        ? 'bg-white text-neutral-900 font-bold ring-1 ring-black/[0.06] shadow-[0_1px_2px_rgba(17,24,39,0.1)]'
-                        : 'text-neutral-500 font-semibold hover:bg-white/70 hover:text-neutral-900'
-                    }`}>{f.label}</button>
-                ))}
-              </div>
-              <div className="divide-y divide-black/[0.05]">
-                {filteredFinancialRecords.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 py-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'recharge' ? 'bg-emerald-50 text-emerald-700' : item.type === 'points' ? 'bg-violet-50 text-violet-700' : 'bg-black/[0.05] text-neutral-700'}`}><CreditCard className="w-4 h-4" /></div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-neutral-900 truncate">{item.title}</div>
-                        <div className="text-[11px] text-neutral-400 mt-0.5">{item.sub} · {item.time}</div>
+
+              <div className="py-3">
+                <button
+                  type="button"
+                  onClick={() => setIsTechDetailsOpen((prev) => !prev)}
+                  aria-expanded={isTechDetailsOpen}
+                  className="w-full flex items-center justify-between text-[11px] font-semibold text-neutral-500 hover:text-[#0f172a] cursor-pointer transition py-0.5"
+                >
+                  <span>查看技术凭据详情</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform ${
+                      isTechDetailsOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {isTechDetailsOpen && (
+                  <div className="mt-2.5 pt-2.5 border-t border-black/[0.05] space-y-2.5 animate-in fade-in">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-[11px] font-semibold text-neutral-500 shrink-0">
+                        云端唯一标识
+                      </span>
+                      <span className="text-[11px] text-neutral-700 font-mono tabular-nums break-all text-right">
+                        {cloudUid}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-neutral-500 shrink-0">
+                        硬件签名令牌
+                      </span>
+                      <div className="flex items-center gap-1 min-w-0 justify-end">
+                        <span className="text-[11px] text-neutral-700 font-mono tabular-nums break-all text-right">
+                          {hwToken}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(hwToken).catch(() => {});
+                            toast.info('复制成功', '硬件签名令牌已复制到剪贴板');
+                          }}
+                          aria-label="复制硬件令牌"
+                          className="w-7 h-7 rounded-lg text-neutral-400 hover:text-[#0f172a] hover:bg-neutral-100 flex items-center justify-center cursor-pointer shrink-0"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
-                    <span className={`text-sm font-bold tabular-nums shrink-0 ${item.amount.startsWith('+') ? 'text-emerald-700' : 'text-neutral-900'}`}>{item.amount}</span>
+
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-[11px] font-semibold text-neutral-500 shrink-0">
+                        最近同步时间
+                      </span>
+                      <span className="text-[11px] text-neutral-600 tabular-nums">
+                        {lastSyncTime}
+                      </span>
+                    </div>
                   </div>
+                )}
+              </div>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ==================== TAB 5: 财务对账（去重资产卡，聚焦单卡流水明细） ==================== */}
+        {activeTab === 'tab-finance' && (
+          <div id="tab-panel-finance">
+            <SectionCard>
+              <SectionHeader
+                title="账单明细"
+                subtitle="关联订单、储值充值与会员返现记录"
+                right={
+                  <span className="text-[11px] text-neutral-400 tabular-nums">
+                    共 {filteredTransactions.length} 笔
+                  </span>
+                }
+              />
+
+              <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-neutral-100 my-3">
+                {[
+                  { key: 'all', label: '全部' },
+                  { key: 'recharge', label: '充值' },
+                  { key: 'expense', label: '扣款' },
+                  { key: 'reward', label: '返现' }
+                ].map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() =>
+                      setFinanceFilter(f.key as 'all' | 'recharge' | 'expense' | 'reward')
+                    }
+                    aria-pressed={financeFilter === f.key}
+                    className={`h-8 rounded-lg text-xs cursor-pointer transition ${
+                      financeFilter === f.key
+                        ? 'bg-white text-[#0f172a] font-bold shadow-xs'
+                        : 'text-neutral-500 font-semibold hover:text-[#0f172a]'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
                 ))}
               </div>
-            </div>
-          )}
-        </section>
+
+              {filteredTransactions.length > 0 ? (
+                <div className="divide-y divide-black/[0.05]">
+                  {filteredTransactions.map((item) => {
+                    const isPositive = item.amount >= 0;
+                    const formattedAmount = `${isPositive ? '+' : '-'}¥${Math.abs(
+                      item.amount
+                    ).toFixed(2)}`;
+                    const Icon =
+                      item.type === 'reward'
+                        ? Gift
+                        : isPositive
+                          ? ArrowDownLeft
+                          : ArrowUpRight;
+
+                    return (
+                      <div key={item.id} className="flex items-center justify-between gap-3 py-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                              item.type === 'recharge' || item.type === 'refund'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : item.type === 'reward'
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : 'bg-neutral-100 text-neutral-700'
+                            }`}
+                          >
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-[#0f172a] truncate">
+                              {item.title}
+                            </div>
+                            <div className="text-[11px] text-neutral-400 mt-0.5 tabular-nums truncate">
+                              {item.timestamp}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div
+                            className={`text-sm font-extrabold tabular-nums leading-tight ${
+                              isPositive ? 'text-emerald-700' : 'text-[#0f172a]'
+                            }`}
+                          >
+                            {formattedAmount}
+                          </div>
+                          <div className="text-[10px] text-neutral-400 tabular-nums mt-0.5">
+                            结余 ¥{item.balanceAfter.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-8 flex flex-col items-center text-center">
+                  <CreditCard className="w-6 h-6 text-neutral-300 mb-1.5" />
+                  <span className="text-xs font-semibold text-neutral-500">当前筛选下暂无流水</span>
+                </div>
+              )}
+            </SectionCard>
+          </div>
+        )}
       </div>
+
+      {/* 脏状态驱动的底部悬浮保存条：仅在存在未保存修改时亮起 */}
+      {hasUnsavedChanges && (
+        <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[calc(100%-28px)] max-w-[402px] z-40 animate-in slide-in-from-bottom">
+          <div className="h-[54px] px-3 rounded-2xl bg-[#0f172a] text-white shadow-[0_14px_34px_-10px_rgba(15,23,42,0.5)] ring-1 ring-white/10 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 pl-1">
+              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+              <span className="text-xs font-bold truncate">
+                {dirtyTabLabels.length > 0
+                  ? `${dirtyTabLabels.join(' · ')} 未保存`
+                  : '有未保存修改'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleDiscardChanges}
+                disabled={isSyncing}
+                className="h-9 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-200 text-xs font-semibold cursor-pointer transition disabled:opacity-50"
+              >
+                还原
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAndSync}
+                disabled={isSyncing}
+                className="h-9 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#0f172a] text-xs font-black cursor-pointer transition active:scale-95 disabled:opacity-60"
+              >
+                {isSyncing ? '保存中...' : '保存更改'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
