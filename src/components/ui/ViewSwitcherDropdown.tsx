@@ -52,7 +52,7 @@ export function ViewSwitcherDropdown<T extends string>({
         onClick={() => setIsOpen((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className="w-full h-10 px-3 rounded-xl bg-white hover:bg-[#f5f4f0] border border-black/[0.07] flex items-center justify-between gap-2 text-left transition active:scale-[0.99] cursor-pointer"
+        className="w-full h-10 px-3 rounded-xl bg-white hover:bg-[#f4f4f5] border border-black/[0.07] flex items-center justify-between gap-2 text-left transition active:scale-[0.99] cursor-pointer"
       >
         <div className="flex items-center gap-2 min-w-0">
           <span className="w-5 h-5 rounded-md bg-white border border-black/[0.06] flex items-center justify-center shrink-0 text-[#059669]">
@@ -96,7 +96,7 @@ export function ViewSwitcherDropdown<T extends string>({
                 className={`w-full px-3 py-2 rounded-lg flex items-center justify-between gap-2 text-left transition cursor-pointer ${
                   isSelected
                     ? 'bg-[#ecfdf5] text-[#065f46] ring-1 ring-[#10b981]/30'
-                    : 'hover:bg-[#f7f6f2] text-[#141413]'
+                    : 'hover:bg-[#f4f4f5] text-[#141413]'
                 }`}
               >
                 <div className="min-w-0">

@@ -121,7 +121,7 @@ export const DeviceIdentityCard: React.FC<DeviceIdentityCardProps> = ({
       {!embedded ? (
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#f1efe9] text-[#141413] flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[#f4f4f5] text-[#141413] flex items-center justify-center">
               <Smartphone className="w-3.5 h-3.5" />
             </div>
             <div>
@@ -139,7 +139,7 @@ export const DeviceIdentityCard: React.FC<DeviceIdentityCardProps> = ({
       )}
 
       <div className="flex items-center gap-2 mb-2.5">
-        <div className="flex-1 bg-[#f7f6f2] border border-black/[0.06] rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+        <div className="flex-1 bg-[#f5f5f5] border border-black/[0.06] rounded-xl px-3.5 py-2.5 flex items-center justify-between">
           <span className="text-[11px] font-semibold text-neutral-400">本机码</span>
           <span className="font-mono text-sm font-black tracking-[0.26em] text-[#141413] tabular-nums">
             {deviceCode || 'DEMO01'}
@@ -150,7 +150,7 @@ export const DeviceIdentityCard: React.FC<DeviceIdentityCardProps> = ({
           onClick={handleCopy}
           aria-label="复制设备码"
           title="复制设备码"
-          className="w-10 h-10 rounded-xl border border-black/[0.08] bg-white hover:bg-[#f7f6f2] text-neutral-700 flex items-center justify-center active:scale-95 transition cursor-pointer shrink-0"
+          className="w-10 h-10 rounded-xl border border-black/[0.08] bg-white hover:bg-[#f5f5f5] text-neutral-700 flex items-center justify-center active:scale-95 transition cursor-pointer shrink-0"
         >
           {copied ? (
             <Check className="w-4 h-4 text-emerald-600" />
@@ -167,7 +167,7 @@ export const DeviceIdentityCard: React.FC<DeviceIdentityCardProps> = ({
             onChange={(e) => setInput(e.target.value.toUpperCase().slice(0, 6))}
             placeholder={inSession ? '就餐中不可对齐' : '输入另一台设备的 6 位码'}
             disabled={inSession}
-            className="flex-1 h-10 bg-[#f7f6f2] border border-black/[0.07] rounded-xl px-3 font-mono text-xs tracking-widest outline-none focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 disabled:bg-[#f1efe9] disabled:text-neutral-400"
+            className="flex-1 h-10 bg-[#f5f5f5] border border-black/[0.07] rounded-xl px-3 font-mono text-xs tracking-widest outline-none focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 disabled:bg-[#f4f4f5] disabled:text-neutral-400"
           />
           <button
             type="button"
@@ -175,7 +175,7 @@ export const DeviceIdentityCard: React.FC<DeviceIdentityCardProps> = ({
             disabled={busy || input.length !== 6 || inSession}
             className={`h-10 px-3.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition shrink-0 ${
               busy || input.length !== 6 || inSession
-                ? 'bg-[#f1efe9] text-neutral-400 cursor-not-allowed'
+                ? 'bg-[#f4f4f5] text-neutral-400 cursor-not-allowed'
                 : 'bg-[#141413] hover:bg-neutral-800 text-white cursor-pointer active:scale-95'
             }`}
           >

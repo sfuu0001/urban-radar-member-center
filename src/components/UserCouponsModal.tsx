@@ -239,7 +239,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
       className={
         embedded
           ? 'bg-white w-full rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(15,23,42,0.06)] flex flex-col overflow-hidden relative select-none'
-          : 'bg-[#f9f9f7] w-full max-w-2xl max-h-[90vh] rounded-2xl border border-[#e2e3e1] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 relative'
+          : 'bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl border border-neutral-200 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 relative'
       }
     >
       {/* Toast Notification */}
@@ -302,10 +302,10 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
       )}
 
         {/* Promo Code Input Bar */}
-        <div className="p-2.5 bg-white border-b border-[#e2e3e1] shrink-0">
+        <div className="p-2.5 bg-white border-b border-neutral-200 shrink-0">
           <form
             onSubmit={(e) => handleRedeemCode(e)}
-            className="flex items-center gap-2 bg-[#f4f4f2] border border-[#e2e3e1] rounded-xl p-1"
+            className="flex items-center gap-2 bg-[#f5f5f5] border border-neutral-200 rounded-xl p-1"
           >
             <Tag className="w-3.5 h-3.5 text-amber-500 ml-1.5 shrink-0" />
             <input
@@ -325,14 +325,14 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
         </div>
 
         {/* Tabs Bar */}
-        <div className="px-3 pt-2 pb-1.5 bg-[#f9f9f7] flex items-center gap-1.5 border-b border-[#e8e8e4] shrink-0">
+        <div className="px-3 pt-2 pb-1.5 bg-white flex items-center gap-1.5 border-b border-neutral-200 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('available')}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'available'
                 ? 'bg-black text-white'
-                : 'text-[#5a5854] hover:text-black hover:bg-neutral-200/60'
+                : 'text-neutral-600 hover:text-black hover:bg-neutral-100'
             }`}
           >
             <span>可使用</span>
@@ -345,7 +345,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'market'
                 ? 'bg-black text-white'
-                : 'text-[#5a5854] hover:text-black hover:bg-neutral-200/60'
+                : 'text-neutral-600 hover:text-black hover:bg-neutral-100'
             }`}
           >
             <Sparkles className="w-3 h-3 text-amber-500" />
@@ -358,7 +358,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'used'
                 ? 'bg-black text-white'
-                : 'text-[#5a5854] hover:text-black hover:bg-neutral-200/60'
+                : 'text-neutral-600 hover:text-black hover:bg-neutral-100'
             }`}
           >
             <span>已使用</span>
@@ -371,7 +371,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'expired'
                 ? 'bg-black text-white'
-                : 'text-[#5a5854] hover:text-black hover:bg-neutral-200/60'
+                : 'text-neutral-600 hover:text-black hover:bg-neutral-100'
             }`}
           >
             <span>已过期</span>
@@ -380,7 +380,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
         </div>
 
         {/* Modal Scroll Content */}
-        <div className={embedded ? 'max-h-[420px] overflow-y-auto p-3 space-y-2.5 bg-[#f9f9f7]' : 'flex-1 overflow-y-auto p-3 space-y-2.5'}>
+        <div className={embedded ? 'max-h-[420px] overflow-y-auto p-3 space-y-2.5 bg-white' : 'flex-1 overflow-y-auto p-3 space-y-2.5 bg-white'}>
           {activeTab === 'market' ? (
             <div className="space-y-2.5">
               <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-center justify-between">
@@ -396,7 +396,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
                   return (
                     <div
                       key={coupon.id}
-                      className="bg-white rounded-xl border border-[#e2e3e1] p-2.5 sm:p-3 flex items-center justify-between gap-2.5 shadow-2xs"
+                      className="bg-white rounded-xl border border-neutral-200 p-2.5 sm:p-3 flex items-center justify-between gap-2.5 shadow-2xs"
                     >
                       <div className="flex items-center gap-2.5">
                         <div className="w-12 h-12 rounded-lg bg-black text-white flex flex-col items-center justify-center shrink-0">
@@ -425,7 +425,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
                               </span>
                             )}
                           </div>
-                          <p className="text-[10px] text-[#787770] mt-0.5">{coupon.subtitle}</p>
+                          <p className="text-[10px] text-neutral-500 mt-0.5">{coupon.subtitle}</p>
                           <div className="text-[9px] text-neutral-500 mt-0.5">
                             {coupon.timeSlotLabel} · {coupon.dayRestrictionLabel}
                           </div>
@@ -450,7 +450,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
               </div>
             </div>
           ) : currentList.length === 0 ? (
-            <div className="py-10 text-center text-xs text-[#787770] space-y-1.5">
+            <div className="py-10 text-center text-xs text-neutral-500 space-y-1.5">
               <Ticket className="w-7 h-7 text-neutral-300 mx-auto" />
               <p>暂无相关卡券记录</p>
             </div>
@@ -464,7 +464,7 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
                   <div
                     key={item.userCouponId}
                     className={`bg-white rounded-xl border p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs transition ${
-                      isAvailable ? 'border-[#e2e3e1]' : 'border-neutral-200 opacity-60'
+                      isAvailable ? 'border-neutral-200' : 'border-neutral-200 opacity-60'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
@@ -500,14 +500,14 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-[#787770]">{coupon.subtitle}</p>
+                        <p className="text-[10px] text-neutral-500">{coupon.subtitle}</p>
                         
                         {/* Complete tags */}
                         <div className="flex flex-wrap items-center gap-1 text-[9px]">
-                          <span className="tabular-nums font-bold bg-[#f4f4f2] text-[#444] px-1 py-0.2 rounded border border-[#e2e3e1]">
+                          <span className="tabular-nums font-bold bg-[#f4f4f5] text-[#444] px-1 py-0.2 rounded border border-neutral-200">
                             {coupon.code}
                           </span>
-                          <span className="text-neutral-500 bg-[#f7f7f5] px-1 py-0.2 rounded border border-[#e8e8e4]">
+                          <span className="text-neutral-500 bg-[#fafafa] px-1 py-0.2 rounded border border-neutral-200">
                             {coupon.scopeType === 'all_dishes' ? '全品类通用' : coupon.scopeCategoryNames?.join('/') || '限定品类'}
                           </span>
                           <span className="text-neutral-500">
@@ -552,12 +552,12 @@ export const UserCouponsModal: React.FC<UserCouponsModalProps> = ({
 
         {/* Modal Footer */}
         {!embedded && (
-          <div className="p-2.5 bg-[#f0f0ed] border-t border-[#e2e3e1] flex items-center justify-between text-xs text-[#787770] shrink-0">
+          <div className="p-2.5 bg-[#fafafa] border-t border-neutral-200 flex items-center justify-between text-xs text-neutral-500 shrink-0">
             <span className="text-[11px]">黑曜石餐车网络 · 结算时自动推荐最佳抵扣券</span>
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1 bg-white border border-[#e2e3e1] hover:bg-neutral-100 text-black font-bold rounded-lg transition-colors cursor-pointer text-xs"
+              className="px-3 py-1 bg-white border border-neutral-200 hover:bg-neutral-100 text-black font-bold rounded-lg transition-colors cursor-pointer text-xs"
             >
               关闭
             </button>

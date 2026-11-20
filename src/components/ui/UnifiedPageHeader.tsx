@@ -63,7 +63,7 @@ export const UnifiedPageHeader: React.FC<UnifiedPageHeaderProps> = ({
   return (
     <header
       data-purpose="page-header"
-      className={`w-full bg-[#faf9f6]/95 backdrop-blur-md border-b border-black/[0.06] px-3 py-2 ${stickyClassName}`}
+      className={`w-full bg-white/95 backdrop-blur-md border-b border-black/[0.06] px-3 py-2 ${stickyClassName}`}
     >
       <div className="w-full max-w-5xl mx-auto flex items-center justify-between gap-2">
         {/* 左侧：独立返回按钮 + 标题 + 状态指示 + 可选等级徽章 */}
@@ -97,7 +97,7 @@ export const UnifiedPageHeader: React.FC<UnifiedPageHeaderProps> = ({
         </div>
 
         {/* 右侧：轻量去边框工具槽（≥40px 舒适触控热区） */}
-        <div className="inline-flex items-center gap-0.5 p-0.5 rounded-xl bg-[#f1efe9] border border-black/[0.05] shrink-0">
+        <div className="inline-flex items-center gap-0.5 p-0.5 rounded-xl bg-[#f4f4f5] border border-black/[0.05] shrink-0">
           {/* Slot 1: 同心雷达 / 实时联动按钮 */}
           <button
             type="button"
@@ -164,7 +164,7 @@ export const UnifiedPageHeader: React.FC<UnifiedPageHeaderProps> = ({
             {refreshBadge && !isRefreshing && (
               <span
                 aria-hidden="true"
-                className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-[#f1efe9]"
+                className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-[#f4f4f5]"
               />
             )}
           </button>

@@ -820,7 +820,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
   // If user opened independent coupons window view
   if (isCouponsViewOpen) {
     return (
-      <div className="w-full min-h-screen bg-[#f5f4f0] text-[#141413] flex flex-col font-sans select-none animate-in fade-in">
+      <div className="w-full min-h-screen bg-[#ffffff] text-[#141413] flex flex-col font-sans select-none animate-in fade-in">
         <CouponsCenterView
           onBack={() => setIsCouponsViewOpen(false)}
           onGoToMenu={onGoToMenu}
@@ -833,7 +833,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
   // If user opened embedded profile/settings page
   if (isProfileEditOpen) {
     return (
-      <div className="w-full min-h-screen bg-[#f5f4f0] text-[#141413] flex flex-col font-sans select-none animate-in fade-in duration-normal">
+      <div className="w-full min-h-screen bg-[#ffffff] text-[#141413] flex flex-col font-sans select-none animate-in fade-in duration-normal">
         <UserProfileEditView
           userProfile={userProfile}
           onProfileUpdated={(updated) => {
@@ -860,7 +860,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
         : (userProfile.nickname || 'U').trim().slice(0, 1).toUpperCase();
 
   return (
-    <div className="w-full min-h-screen bg-[#f5f4f0] text-[#141413] pb-10 select-none font-sans">
+    <div className="w-full min-h-screen bg-[#ffffff] text-[#141413] pb-10 select-none font-sans">
       {/* BEGIN: Unified HeaderSection */}
       <UnifiedPageHeader
         title="会员中心"
@@ -899,7 +899,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
             title="点击查看会员阶梯与对应折扣权益"
             className={`h-8 px-2.5 rounded-xl border text-[11px] font-bold inline-flex items-center gap-1 transition active:scale-95 cursor-pointer whitespace-nowrap shrink-0 ${
               isGuestIdentity
-                ? 'bg-[#f1efe9] hover:bg-neutral-200/80 text-neutral-600 border-black/[0.08]'
+                ? 'bg-[#f4f4f5] hover:bg-neutral-200/80 text-neutral-600 border-black/[0.08]'
                 : currentTier.badgeHeaderClass
             } ${isTierWindowOpen ? 'ring-2 ring-emerald-500/45' : ''}`}
           >
@@ -1061,7 +1061,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                     <span className="text-[11px] text-neutral-400">点击切换查看各阶梯详情</span>
                   </div>
 
-                  <div className="rounded-2xl bg-[#f3f2ed] p-1.5 pt-2.5 space-y-1.5">
+                  <div className="rounded-2xl bg-[#f4f4f5] p-1.5 pt-2.5 space-y-1.5">
                     {/* 树状阶梯主干连接轨 */}
                     <div className="relative grid grid-cols-4 items-center px-0.5">
                       {/* 水平主干底线 */}
@@ -1093,7 +1093,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                     ? 'bg-[#141413] border-white ring-2 ring-[#141413]/20'
                                     : isUnlocked
                                       ? 'bg-emerald-400 border-white'
-                                      : 'bg-neutral-300 border-[#f3f2ed]'
+                                      : 'bg-neutral-300 border-[#f4f4f5]'
                               }`}
                             />
                           </div>
@@ -1233,7 +1233,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
               </div>
 
               {/* Zone 4: Quiet Footer Bar */}
-              <div className="bg-[#faf9f6] px-4 py-3 border-t border-black/[0.06] flex items-center justify-between gap-2">
+              <div className="bg-[#fafafa] px-4 py-3 border-t border-black/[0.06] flex items-center justify-between gap-2">
                 <span className="text-[11px] text-neutral-500 truncate">
                   {isGuestIdentity
                     ? '登录后即可激活等级折扣'
@@ -1341,7 +1341,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
               type="button"
               onClick={() => navigateToEditTab('finance')}
               title="查看储值余额与账单明细"
-              className="text-right px-1.5 py-1 -my-1 rounded-xl hover:bg-[#f7f6f2] transition cursor-pointer group"
+              className="text-right px-1.5 py-1 -my-1 rounded-xl hover:bg-[#f5f5f5] transition cursor-pointer group"
             >
               <div className="text-base font-black text-[#141413] leading-none tabular-nums">
                 ¥{isGuestIdentity ? '0.00' : userProfile.balance.toFixed(2)}
@@ -1354,7 +1354,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
             <button
               type="button"
               onClick={() => handleOpenAuth('presets')}
-              className="h-9 inline-flex items-center gap-1 px-3 bg-[#f1efe9] hover:bg-neutral-200/80 rounded-xl text-[#141413] text-xs font-bold tracking-tight transition active:scale-95 cursor-pointer"
+              className="h-9 inline-flex items-center gap-1 px-3 bg-[#f4f4f5] hover:bg-neutral-200/80 rounded-xl text-[#141413] text-xs font-bold tracking-tight transition active:scale-95 cursor-pointer"
             >
               <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span>换号</span>
@@ -1731,10 +1731,10 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                     const isPendingGift = !isGuestIdentity && perk.id === 'gift' && !perkStates.giftClaimed;
 
                     const tileClasses = isGuestIdentity
-                      ? 'bg-[#f7f6f2] border-transparent opacity-70 hover:opacity-100'
+                      ? 'bg-[#f5f5f5] border-transparent opacity-70 hover:opacity-100'
                       : isSelected
                         ? 'bg-[#141413] border-[#141413] text-white shadow-sm'
-                        : 'bg-[#f7f6f2] border-transparent hover:bg-[#efede6]';
+                        : 'bg-[#f5f5f5] border-transparent hover:bg-[#e5e5e5]';
 
                     const iconWrapClasses = isGuestIdentity
                       ? 'bg-black/[0.05] text-neutral-500'
@@ -1814,7 +1814,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                         type="button"
                         onClick={() => setSelectedPerk(null)}
                         aria-label="收起权益详情"
-                        className="w-8 h-8 rounded-lg bg-[#f7f6f2] hover:bg-neutral-200/70 text-neutral-500 flex items-center justify-center shrink-0 cursor-pointer transition"
+                        className="w-8 h-8 rounded-lg bg-[#f5f5f5] hover:bg-neutral-200/70 text-neutral-500 flex items-center justify-center shrink-0 cursor-pointer transition"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -1880,7 +1880,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                             className={`h-9 px-3 rounded-xl text-[11px] font-bold shrink-0 cursor-pointer transition ${
                               perkStates.support
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-[#f1efe9] text-neutral-600'
+                                : 'bg-[#f4f4f5] text-neutral-600'
                             }`}
                           >
                             {perkStates.support ? '生效中 · 暂停' : '已暂停 · 开启'}
@@ -1895,7 +1895,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                 activeDetail.id === 'delivery' ? 'addresses' : 'preferences'
                               )
                             }
-                            className="h-9 px-3 rounded-xl bg-[#f7f6f2] border border-black/[0.08] hover:bg-[#efede6] text-[#141413] text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition"
+                            className="h-9 px-3 rounded-xl bg-[#f5f5f5] border border-black/[0.08] hover:bg-[#e5e5e5] text-[#141413] text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition"
                           >
                             <span>
                               {activeDetail.id === 'delivery' ? '管理配送地址' : '设置雷达偏好'}
@@ -1954,7 +1954,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                       setIsCouponsViewOpen(true);
                     }
                   }}
-                  className="w-full py-3.5 hover:bg-[#faf9f6] transition flex items-center justify-between cursor-pointer text-left"
+                  className="w-full py-3.5 hover:bg-[#fafafa] transition flex items-center justify-between cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
@@ -1982,7 +1982,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                 <button
                   type="button"
                   onClick={() => navigateToEditTab('finance')}
-                  className="w-full py-3.5 hover:bg-[#faf9f6] transition flex items-center justify-between cursor-pointer text-left"
+                  className="w-full py-3.5 hover:bg-[#fafafa] transition flex items-center justify-between cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
@@ -2033,10 +2033,10 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveAccountWindow('device')}
-                  className="w-full py-3.5 hover:bg-[#faf9f6] transition flex items-center justify-between cursor-pointer text-left"
+                  className="w-full py-3.5 hover:bg-[#fafafa] transition flex items-center justify-between cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-[#f1efe9] text-neutral-700 flex items-center justify-center flex-shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#f4f4f5] text-neutral-700 flex items-center justify-center flex-shrink-0">
                       <Smartphone className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
@@ -2047,7 +2047,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-neutral-500 font-semibold flex-shrink-0 ml-2">
-                    <span className="font-mono text-[11px] font-bold text-[#141413] bg-[#f1efe9] px-2 py-0.5 rounded-md tabular-nums tracking-wider">
+                    <span className="font-mono text-[11px] font-bold text-[#141413] bg-[#f4f4f5] px-2 py-0.5 rounded-md tabular-nums tracking-wider">
                       {deviceCodeLabel || 'DEMO01'}
                     </span>
                     <ChevronRight className="w-4 h-4 text-neutral-400" />
@@ -2058,10 +2058,10 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                 <button
                   type="button"
                   onClick={() => navigateToEditTab('addresses')}
-                  className="w-full py-3.5 hover:bg-[#faf9f6] transition flex items-center justify-between cursor-pointer text-left"
+                  className="w-full py-3.5 hover:bg-[#fafafa] transition flex items-center justify-between cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-[#f1efe9] flex items-center justify-center text-neutral-700 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#f4f4f5] flex items-center justify-center text-neutral-700 flex-shrink-0">
                       <User className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
@@ -2081,10 +2081,10 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveAccountWindow('payment')}
-                  className="w-full py-3.5 hover:bg-[#faf9f6] transition flex items-center justify-between cursor-pointer text-left"
+                  className="w-full py-3.5 hover:bg-[#fafafa] transition flex items-center justify-between cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-[#f1efe9] flex items-center justify-center text-neutral-700 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#f4f4f5] flex items-center justify-center text-neutral-700 flex-shrink-0">
                       <CreditCard className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
@@ -2101,10 +2101,10 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveAccountWindow('security')}
-                  className="w-full py-3.5 hover:bg-[#faf9f6] transition flex items-center justify-between cursor-pointer text-left"
+                  className="w-full py-3.5 hover:bg-[#fafafa] transition flex items-center justify-between cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-[#f1efe9] flex items-center justify-center text-neutral-700 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#f4f4f5] flex items-center justify-center text-neutral-700 flex-shrink-0">
                       <Shield className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
@@ -2121,10 +2121,10 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveAccountWindow('dev')}
-                  className="w-full py-3.5 hover:bg-[#faf9f6] transition flex items-center justify-between cursor-pointer text-left"
+                  className="w-full py-3.5 hover:bg-[#fafafa] transition flex items-center justify-between cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-[#f1efe9] flex items-center justify-center text-neutral-600 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#f4f4f5] flex items-center justify-center text-neutral-600 flex-shrink-0">
                       {isAdminDeveloper ? <Sparkles className="w-4 h-4 text-amber-500" /> : <Lock className="w-4 h-4" />}
                     </div>
                     <div className="min-w-0">
@@ -2138,7 +2138,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="flex-shrink-0 ml-2 inline-flex items-center gap-1 text-xs font-semibold text-neutral-700 bg-[#f1efe9] px-2.5 py-1.5 rounded-lg">
+                  <div className="flex-shrink-0 ml-2 inline-flex items-center gap-1 text-xs font-semibold text-neutral-700 bg-[#f4f4f5] px-2.5 py-1.5 rounded-lg">
                     <span>{isAdminDeveloper ? '配置中枢' : '登录'}</span>
                     <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
                   </div>
@@ -2176,7 +2176,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                       );
                       manualForceCloudPurgeAndReload();
                     }}
-                    className="flex-shrink-0 h-9 px-3 inline-flex items-center gap-1 text-xs font-bold text-[#141413] bg-[#f1efe9] hover:bg-neutral-200/80 rounded-xl transition active:scale-95 cursor-pointer"
+                    className="flex-shrink-0 h-9 px-3 inline-flex items-center gap-1 text-xs font-bold text-[#141413] bg-[#f4f4f5] hover:bg-neutral-200/80 rounded-xl transition active:scale-95 cursor-pointer"
                     title={TCB_CLOUD_ENABLED ? '清空本地所有旧版本缓存并从云端拉取最新数据' : '清空本地所有旧版本缓存并刷新页面'}
                   >
                     <RotateCw className="w-3.5 h-3.5" />
@@ -2238,7 +2238,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                     className="w-full bg-white rounded-2xl border border-black/[0.08] shadow-[0_8px_28px_-12px_rgba(20,20,19,0.14)] overflow-hidden animate-in fade-in"
                   >
                     {/* Embedded Window Header */}
-                    <div className="bg-[#faf9f6] px-4 py-3 border-b border-black/[0.06] flex items-center justify-between gap-2.5">
+                    <div className="bg-[#fafafa] px-4 py-3 border-b border-black/[0.06] flex items-center justify-between gap-2.5">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <span className="w-8 h-8 rounded-xl bg-[#141413] text-emerald-400 flex items-center justify-center shrink-0">
                           <WindowIcon className="w-4 h-4" />
@@ -2281,8 +2281,8 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                             }}
                             className={`w-full p-3.5 rounded-xl border flex items-center justify-between gap-2 text-left transition cursor-pointer min-h-[56px] ${
                               defaultPayment === 'wechat'
-                                ? 'border-[#141413] bg-[#f7f6f2]'
-                                : 'border-black/[0.07] hover:bg-[#f7f6f2]/60'
+                                ? 'border-[#141413] bg-[#f5f5f5]'
+                                : 'border-black/[0.07] hover:bg-[#f5f5f5]/60'
                             }`}
                           >
                             <div className="min-w-0">
@@ -2309,8 +2309,8 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                             }}
                             className={`w-full p-3.5 rounded-xl border flex items-center justify-between gap-2 text-left transition cursor-pointer min-h-[56px] ${
                               defaultPayment === 'alipay'
-                                ? 'border-[#141413] bg-[#f7f6f2]'
-                                : 'border-black/[0.07] hover:bg-[#f7f6f2]/60'
+                                ? 'border-[#141413] bg-[#f5f5f5]'
+                                : 'border-black/[0.07] hover:bg-[#f5f5f5]/60'
                             }`}
                           >
                             <div className="min-w-0">
@@ -2388,7 +2388,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                 type="button"
                                 disabled={isGuestIdentity}
                                 onClick={() => setIsPwdUpdateOpen((prev) => !prev)}
-                                className="h-9 px-3 rounded-xl bg-[#f7f6f2] hover:bg-neutral-200/70 disabled:opacity-45 text-xs font-bold text-[#141413] cursor-pointer shrink-0 transition"
+                                className="h-9 px-3 rounded-xl bg-[#f5f5f5] hover:bg-neutral-200/70 disabled:opacity-45 text-xs font-bold text-[#141413] cursor-pointer shrink-0 transition"
                               >
                                 {isPwdUpdateOpen ? '收起' : '修改密码'}
                               </button>
@@ -2424,14 +2424,14 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                   value={newAccountPwd}
                                   onChange={(e) => setNewAccountPwd(e.target.value)}
                                   placeholder="输入新密码（至少 6 位）"
-                                  className="w-full h-10 bg-[#f7f6f2] border border-black/[0.08] rounded-xl px-3 text-xs outline-none focus:bg-white focus:border-emerald-600"
+                                  className="w-full h-10 bg-[#f5f5f5] border border-black/[0.08] rounded-xl px-3 text-xs outline-none focus:bg-white focus:border-emerald-600"
                                 />
                                 <input
                                   type="password"
                                   value={confirmAccountPwd}
                                   onChange={(e) => setConfirmAccountPwd(e.target.value)}
                                   placeholder="再次输入确认新密码"
-                                  className="w-full h-10 bg-[#f7f6f2] border border-black/[0.08] rounded-xl px-3 text-xs outline-none focus:bg-white focus:border-emerald-600"
+                                  className="w-full h-10 bg-[#f5f5f5] border border-black/[0.08] rounded-xl px-3 text-xs outline-none focus:bg-white focus:border-emerald-600"
                                 />
                                 <button
                                   type="submit"
@@ -2448,7 +2448,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                       {activeAccountWindow === 'auth' && (
                         <div className="space-y-3 text-xs">
                           {/* Sub-tabs */}
-                          <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#f4f3ee]">
+                          <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#f4f4f5]">
                             {[
                               { id: 'sms' as const, label: '短信免密' },
                               { id: 'password' as const, label: '账密登录' },
@@ -2481,7 +2481,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                   value={smsPhone}
                                   onChange={(e) => setSmsPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
                                   placeholder="请输入 11 位手机号"
-                                  className="w-full h-10 bg-[#f7f6f2] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600 tabular-nums"
+                                  className="w-full h-10 bg-[#f5f5f5] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600 tabular-nums"
                                 />
                               </div>
 
@@ -2496,13 +2496,13 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                     value={smsCode}
                                     onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                     placeholder="6 位数字验证码"
-                                    className="flex-1 h-10 bg-[#f7f6f2] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600 tracking-widest tabular-nums"
+                                    className="flex-1 h-10 bg-[#f5f5f5] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600 tracking-widest tabular-nums"
                                   />
                                   <button
                                     type="button"
                                     disabled={isSendingSms || smsCountdown > 0}
                                     onClick={handleSendEmbeddedSms}
-                                    className="h-10 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 disabled:opacity-50 text-[#141413] text-xs font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer transition"
+                                    className="h-10 px-3 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 disabled:opacity-50 text-[#141413] text-xs font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer transition"
                                   >
                                     <Send className="w-3 h-3" />
                                     <span>{smsCountdown > 0 ? `${smsCountdown}s` : isSendingSms ? '发送中' : '获取验证码'}</span>
@@ -2520,7 +2520,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                   value={smsNickname}
                                   onChange={(e) => setSmsNickname(e.target.value)}
                                   placeholder="首次登录将自动注册并应用此昵称"
-                                  className="w-full h-10 bg-[#f7f6f2] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600"
+                                  className="w-full h-10 bg-[#f5f5f5] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600"
                                 />
                               </div>
 
@@ -2546,7 +2546,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                   value={pwdPhone}
                                   onChange={(e) => setPwdPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
                                   placeholder="请输入 11 位手机号"
-                                  className="w-full h-10 bg-[#f7f6f2] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600 tabular-nums"
+                                  className="w-full h-10 bg-[#f5f5f5] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600 tabular-nums"
                                 />
                               </div>
 
@@ -2575,7 +2575,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                     value={pwdValue}
                                     onChange={(e) => setPwdValue(e.target.value)}
                                     placeholder="请输入登录密码"
-                                    className="w-full h-10 bg-[#f7f6f2] border border-black/[0.08] rounded-xl pl-3 pr-9 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600"
+                                    className="w-full h-10 bg-[#f5f5f5] border border-black/[0.08] rounded-xl pl-3 pr-9 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600"
                                   />
                                   <button
                                     type="button"
@@ -2655,7 +2655,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                     points: INITIAL_USER_PROFILE.points
                                   })
                                 }
-                                className="p-2.5 rounded-xl border border-black/[0.07] bg-[#f7f6f2] hover:bg-[#efede6] text-left cursor-pointer transition"
+                                className="p-2.5 rounded-xl border border-black/[0.07] bg-[#f5f5f5] hover:bg-[#e5e5e5] text-left cursor-pointer transition"
                               >
                                 <span className="font-bold text-[#141413] block truncate">
                                   {INITIAL_USER_PROFILE.nickname}
@@ -2676,7 +2676,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                     points: 620
                                   })
                                 }
-                                className="p-2.5 rounded-xl border border-black/[0.07] bg-[#f7f6f2] hover:bg-[#efede6] text-left cursor-pointer transition"
+                                className="p-2.5 rounded-xl border border-black/[0.07] bg-[#f5f5f5] hover:bg-[#e5e5e5] text-left cursor-pointer transition"
                               >
                                 <span className="font-bold text-[#141413] block truncate">
                                   林夕 · 黑曜石尝鲜
@@ -2717,7 +2717,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                   type="text"
                                   value={devAccountInput}
                                   onChange={(e) => setDevAccountInput(e.target.value)}
-                                  className="w-full h-10 bg-[#f7f6f2] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600"
+                                  className="w-full h-10 bg-[#f5f5f5] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600"
                                 />
                               </div>
                               <div>
@@ -2728,7 +2728,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                   type="password"
                                   value={devPassInput}
                                   onChange={(e) => setDevPassInput(e.target.value)}
-                                  className="w-full h-10 bg-[#f7f6f2] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600"
+                                  className="w-full h-10 bg-[#f5f5f5] border border-black/[0.08] rounded-xl px-3 text-xs font-medium text-[#141413] outline-none focus:bg-white focus:border-emerald-600"
                                 />
                               </div>
                               <button
@@ -2774,7 +2774,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                   className={`h-8 px-3 rounded-lg text-[11px] font-bold cursor-pointer ${
                                     simulateOffline
                                       ? 'bg-rose-600 text-white'
-                                      : 'bg-[#f4f3ee] text-neutral-700'
+                                      : 'bg-[#f4f4f5] text-neutral-700'
                                   }`}
                                 >
                                   {simulateOffline ? '已开启' : '已关闭'}
@@ -2792,7 +2792,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                   className={`h-8 px-3 rounded-lg text-[11px] font-bold cursor-pointer ${
                                     previewAsConsumer
                                       ? 'bg-emerald-600 text-white'
-                                      : 'bg-[#f4f3ee] text-neutral-700'
+                                      : 'bg-[#f4f4f5] text-neutral-700'
                                   }`}
                                 >
                                   {previewAsConsumer ? '预览中' : '标准视图'}
@@ -2810,7 +2810,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                       className={`h-9 rounded-lg text-[11px] font-bold cursor-pointer ${
                                         networkDelayMs === ms
                                           ? 'bg-[#141413] text-white'
-                                          : 'bg-[#f7f6f2] text-neutral-600 hover:bg-neutral-200/70'
+                                          : 'bg-[#f5f5f5] text-neutral-600 hover:bg-neutral-200/70'
                                       }`}
                                     >
                                       {ms === 0 ? '无延迟' : `${ms}ms`}
@@ -2837,7 +2837,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                       className={`h-9 rounded-lg text-[11px] font-bold cursor-pointer ${
                                         simulatePaymentOutcome === item.key
                                           ? 'bg-[#141413] text-white'
-                                          : 'bg-[#f7f6f2] text-neutral-600 hover:bg-neutral-200/70'
+                                          : 'bg-[#f5f5f5] text-neutral-600 hover:bg-neutral-200/70'
                                       }`}
                                     >
                                       {item.label}
@@ -2853,7 +2853,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                                     clearAllSimulations();
                                     toast.info('已重置所有模拟参数');
                                   }}
-                                  className="w-full h-10 rounded-xl bg-[#f4f3ee] hover:bg-neutral-200/80 text-neutral-700 text-xs font-bold cursor-pointer transition"
+                                  className="w-full h-10 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 text-neutral-700 text-xs font-bold cursor-pointer transition"
                                 >
                                   一键清除所有模拟参数
                                 </button>
@@ -2865,7 +2865,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
                     </div>
 
                     {/* Embedded Window Footer */}
-                    <div className="bg-[#faf9f6] px-4 py-3 border-t border-black/[0.06] flex items-center justify-between gap-2">
+                    <div className="bg-[#fafafa] px-4 py-3 border-t border-black/[0.06] flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold text-neutral-400 truncate">
                         {meta.footerHint}
                       </span>
@@ -2893,7 +2893,7 @@ export const ProfilePageView: React.FC<ProfilePageViewProps> = ({
             aria-label="切换用户"
             title="切换 / 注册新号"
             onClick={() => handleOpenAuth('presets')}
-            className="h-11 px-4 bg-white border border-black/[0.07] rounded-xl text-[#141413] text-xs font-bold shadow-[0_2px_10px_-6px_rgba(20,20,19,0.08)] hover:bg-[#f7f6f2] flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+            className="h-11 px-4 bg-white border border-black/[0.07] rounded-xl text-[#141413] text-xs font-bold shadow-[0_2px_10px_-6px_rgba(20,20,19,0.08)] hover:bg-[#f5f5f5] flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
           >
             <UserCheck className="w-4 h-4 text-emerald-600" />
             <span>切换账号</span>

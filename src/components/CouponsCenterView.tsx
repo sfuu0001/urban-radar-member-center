@@ -67,7 +67,7 @@ function getStubTheme(designStyle: CouponItem['designStyle'], muted: boolean) {
     case 'minimal_silver':
     default:
       return {
-        container: 'bg-[#f1efe9] text-[#141413]',
+        container: 'bg-[#f4f4f5] text-[#141413]',
         value: 'text-[#141413]',
         unit: 'text-neutral-600',
         sub: 'text-neutral-500'
@@ -332,11 +332,11 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
           <div className="relative w-0 border-l border-dashed border-black/[0.1] shrink-0">
             <span
               aria-hidden="true"
-              className="absolute -top-2 -left-[7px] w-3.5 h-3.5 rounded-full bg-[#f5f4f0]"
+              className="absolute -top-2 -left-[7px] w-3.5 h-3.5 rounded-full bg-white"
             />
             <span
               aria-hidden="true"
-              className="absolute -bottom-2 -left-[7px] w-3.5 h-3.5 rounded-full bg-[#f5f4f0]"
+              className="absolute -bottom-2 -left-[7px] w-3.5 h-3.5 rounded-full bg-white"
             />
           </div>
 
@@ -383,7 +383,7 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
                     onClick={() => handleCopyCode(coupon.code)}
                     aria-label={`复制券码 ${coupon.code}`}
                     title={`复制券码 ${coupon.code}`}
-                    className="w-9 h-9 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-neutral-700 flex items-center justify-center transition cursor-pointer"
+                    className="w-9 h-9 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 text-neutral-700 flex items-center justify-center transition cursor-pointer"
                   >
                     {copiedCode === coupon.code ? (
                       <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -410,7 +410,7 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
 
         {/* Expandable Rule Details Drawer */}
         {isExpanded && (
-          <div className="px-3.5 py-2.5 bg-[#faf9f6] border-t border-black/[0.05] text-[11px] text-neutral-600 space-y-1.5 animate-in fade-in">
+          <div className="px-3.5 py-2.5 bg-[#fafafa] border-t border-black/[0.05] text-[11px] text-neutral-600 space-y-1.5 animate-in fade-in">
             <div className="flex items-center justify-between gap-2">
               <span className="text-neutral-400">礼券编号</span>
               <button
@@ -507,11 +507,11 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
           <div className="relative w-0 border-l border-dashed border-black/[0.1] shrink-0">
             <span
               aria-hidden="true"
-              className="absolute -top-2 -left-[7px] w-3.5 h-3.5 rounded-full bg-[#f5f4f0]"
+              className="absolute -top-2 -left-[7px] w-3.5 h-3.5 rounded-full bg-white"
             />
             <span
               aria-hidden="true"
-              className="absolute -bottom-2 -left-[7px] w-3.5 h-3.5 rounded-full bg-[#f5f4f0]"
+              className="absolute -bottom-2 -left-[7px] w-3.5 h-3.5 rounded-full bg-white"
             />
           </div>
 
@@ -534,7 +534,7 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
                   <span className="truncate">{coupon.timeSlotLabel || '全天可用'}</span>
                   <span className="shrink-0 ml-1">余 {remainRatio}%</span>
                 </div>
-                <div className="w-full h-1 rounded-full bg-[#f1efe9] overflow-hidden">
+                <div className="w-full h-1 rounded-full bg-[#f4f4f5] overflow-hidden">
                   <div
                     className="h-full rounded-full bg-emerald-500 transition-all"
                     style={{ width: `${remainRatio}%` }}
@@ -548,7 +548,7 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
                 onClick={() => handleClaimMarketCoupon(coupon)}
                 className={`h-9 px-3.5 rounded-xl text-[11px] font-bold whitespace-nowrap shrink-0 transition ${
                   isClaimed
-                    ? 'bg-[#f1efe9] text-neutral-400 cursor-not-allowed'
+                    ? 'bg-[#f4f4f5] text-neutral-400 cursor-not-allowed'
                     : 'bg-[#141413] hover:bg-neutral-800 text-white active:scale-95 cursor-pointer'
                 }`}
               >
@@ -569,7 +569,7 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
         : expiredCoupons;
 
   return (
-    <div className="w-full min-h-screen bg-[#f5f4f0] text-[#141413] pb-14 select-none font-sans">
+    <div className="w-full min-h-screen bg-white text-[#141413] pb-14 select-none font-sans">
       <UnifiedPageHeader
         title="我的优惠券包"
         onBack={onBack}
@@ -635,7 +635,7 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
         {/* Promo Code Redemption Card */}
         <section className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_10px_-6px_rgba(20,20,19,0.06)] p-3.5 space-y-2.5">
           <form onSubmit={(e) => handleRedeemCode(e)} className="flex items-center gap-2">
-            <div className="flex-1 h-11 bg-[#f7f6f2] border border-black/[0.07] focus-within:bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/15 rounded-xl px-3 flex items-center gap-2 transition">
+            <div className="flex-1 h-11 bg-[#f5f5f5] border border-black/[0.07] focus-within:bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/15 rounded-xl px-3 flex items-center gap-2 transition">
               <Tag className="w-4 h-4 text-neutral-400 shrink-0" />
               <input
                 type="text"
@@ -673,7 +673,7 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
         {/* Segmented Filter Tabs */}
         <nav
           aria-label="优惠券分类筛选"
-          className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-[#eceae3]"
+          className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-[#f4f4f5]"
         >
           {[
             { id: 'available' as const, label: `可用 (${availableCoupons.length})` },
@@ -713,7 +713,7 @@ export const CouponsCenterView: React.FC<CouponsCenterViewProps> = ({
           </section>
         ) : currentRecords.length === 0 ? (
           <section className="bg-white rounded-2xl border border-black/[0.06] py-12 px-6 text-center flex flex-col items-center gap-2.5">
-            <div className="w-12 h-12 rounded-2xl bg-[#f1efe9] text-neutral-400 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-[#f4f4f5] text-neutral-400 flex items-center justify-center">
               <Ticket className="w-5 h-5" />
             </div>
             <div className="text-sm font-bold text-[#141413]">

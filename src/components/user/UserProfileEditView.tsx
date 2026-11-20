@@ -72,7 +72,7 @@ const ADDRESS_TAG_BADGE_PRESETS = ['公司', '家', '学校', '写字楼', '住�
 function getAddressBadgeClassName(tag: string): string {
   const normalized = tag.trim();
   if (!normalized) {
-    return 'bg-[#f1efe9] text-neutral-500 border-black/[0.08] hover:bg-[#e6e3da]';
+    return 'bg-[#f4f4f5] text-neutral-500 border-black/[0.08] hover:bg-[#e4e4e7]';
   }
   if (normalized === '家' || normalized === '住宅') {
     return 'bg-emerald-50 text-emerald-800 border-emerald-200/90 hover:bg-emerald-100/80';
@@ -81,7 +81,7 @@ function getAddressBadgeClassName(tag: string): string {
     return 'bg-amber-50 text-amber-800 border-amber-200/90 hover:bg-amber-100/80';
   }
   if (normalized === '公司' || normalized === '写字楼' || normalized === '学校' || normalized === '高校') {
-    return 'bg-[#f1efe9] text-[#141413] border-black/[0.08] hover:bg-[#e6e3da]';
+    return 'bg-[#f4f4f5] text-[#141413] border-black/[0.08] hover:bg-[#e4e4e7]';
   }
   return 'bg-amber-50 text-amber-800 border-amber-200/90 hover:bg-amber-100/80';
 }
@@ -1088,7 +1088,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
 
   return (
     <div
-      className={`w-full min-h-screen bg-[#f5f4f0] text-[#141413] select-none font-sans ${
+      className={`w-full min-h-screen bg-[#ffffff] text-[#141413] select-none font-sans ${
         hasUnsavedChanges ? 'pb-28' : 'pb-12'
       }`}
     >
@@ -1163,7 +1163,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                 <span
                   className={`px-1.5 py-0.5 rounded-md text-[11px] font-bold shrink-0 ${
                     isGuestUid
-                      ? 'bg-[#f1efe9] text-neutral-500'
+                      ? 'bg-[#f4f4f5] text-neutral-500'
                       : 'bg-emerald-50 text-emerald-700'
                   }`}
                 >
@@ -1183,7 +1183,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
             type="button"
             onClick={() => setActiveWindowTab('tab-finance')}
             title="查看资产与对账明细"
-            className="text-right shrink-0 pl-2.5 pr-1 py-1 -my-1 rounded-xl border-l border-black/[0.06] hover:bg-[#f7f6f2] transition cursor-pointer flex items-center gap-1 group"
+            className="text-right shrink-0 pl-2.5 pr-1 py-1 -my-1 rounded-xl border-l border-black/[0.06] hover:bg-[#f5f5f5] transition cursor-pointer flex items-center gap-1 group"
           >
             <div>
               <div className="text-[15px] font-black text-[#141413] tabular-nums leading-none">
@@ -1212,10 +1212,10 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                 id={`tab-nav-${t.id}`}
                 data-tab={t.id}
                 onClick={() => setActiveWindowTab(t.id)}
-                className="w-full py-3.5 hover:bg-[#faf9f6] transition flex items-center justify-between gap-2.5 text-left cursor-pointer"
+                className="w-full py-3.5 hover:bg-[#fafafa] transition flex items-center justify-between gap-2.5 text-left cursor-pointer"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <span className="w-9 h-9 rounded-xl bg-[#f1efe9] text-neutral-700 flex items-center justify-center shrink-0">
+                  <span className="w-9 h-9 rounded-xl bg-[#f4f4f5] text-neutral-700 flex items-center justify-center shrink-0">
                     <Icon className="w-4 h-4" />
                   </span>
                   <div className="min-w-0">
@@ -1260,7 +1260,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     type="button"
                     onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
                     aria-expanded={isAvatarPickerOpen}
-                    className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-[#141413] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition shrink-0"
+                    className="h-9 px-3 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 text-[#141413] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition shrink-0"
                   >
                     <span className="text-base leading-none">{displayAvatarFallback}</span>
                     <span>{isAvatarPickerOpen ? '收起' : '更换'}</span>
@@ -1290,7 +1290,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                           className={`h-11 rounded-xl flex items-center justify-center text-xl transition cursor-pointer ${
                             isSelected
                               ? 'bg-emerald-50 ring-2 ring-emerald-600 shadow-xs'
-                              : 'bg-[#f7f6f2] hover:bg-[#efede6] border border-black/[0.05]'
+                              : 'bg-[#f5f5f5] hover:bg-[#e5e5e5] border border-black/[0.05]'
                           }`}
                         >
                           {icon}
@@ -1321,7 +1321,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   maxLength={20}
                   onChange={(e) => setNickname(e.target.value)}
                   placeholder="输入您的称呼"
-                  className="w-full h-10 px-3 rounded-xl bg-[#f7f6f2] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#141413] transition tabular-nums placeholder:text-neutral-400"
+                  className="w-full h-10 px-3 rounded-xl bg-[#f5f5f5] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#141413] transition tabular-nums placeholder:text-neutral-400"
                 />
               </div>
 
@@ -1349,7 +1349,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   maxLength={60}
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="写点什么介绍你的口味偏好..."
-                  className="w-full p-3 rounded-xl bg-[#f7f6f2] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs leading-relaxed text-[#141413] transition resize-none placeholder:text-neutral-400"
+                  className="w-full p-3 rounded-xl bg-[#f5f5f5] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs leading-relaxed text-[#141413] transition resize-none placeholder:text-neutral-400"
                 />
               </div>
 
@@ -1384,7 +1384,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       <button
                         type="button"
                         onClick={openBindPanel}
-                        className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-[#141413] text-xs font-bold transition cursor-pointer"
+                        className="h-9 px-3 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 text-[#141413] text-xs font-bold transition cursor-pointer"
                       >
                         {phone ? '管理' : '去绑定'}
                       </button>
@@ -1393,7 +1393,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                 </div>
 
                 {isBindOpen && (
-                  <div className="mt-3 rounded-xl border border-black/[0.08] bg-[#f7f6f2] p-3 space-y-2.5 animate-in fade-in">
+                  <div className="mt-3 rounded-xl border border-black/[0.08] bg-[#f5f5f5] p-3 space-y-2.5 animate-in fade-in">
                     {phone && (
                       <div className="space-y-2 pb-2.5 border-b border-black/[0.06]">
                         <div className="flex items-center justify-between">
@@ -1532,7 +1532,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   <span className="text-xs font-bold text-[#141413] block">性别称谓</span>
                   <span className="text-[11px] text-neutral-400">影响取餐叫号与称呼</span>
                 </div>
-                <div className="inline-flex rounded-xl bg-[#f1efe9] p-1 shrink-0">
+                <div className="inline-flex rounded-xl bg-[#f4f4f5] p-1 shrink-0">
                   {[
                     { val: 'secret', label: '保密' },
                     { val: 'male', label: '先生' },
@@ -1567,7 +1567,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   type="date"
                   value={birthday}
                   onChange={(e) => setBirthday(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl bg-[#f7f6f2] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#141413] transition tabular-nums"
+                  className="w-full h-10 px-3 rounded-xl bg-[#f5f5f5] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#141413] transition tabular-nums"
                 />
               </div>
                   </div>
@@ -1585,14 +1585,14 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     <button
                       type="button"
                       onClick={handleResetToInitial}
-                      className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-[11px] font-bold text-neutral-700 inline-flex items-center gap-1 cursor-pointer transition"
+                      className="h-9 px-3 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 text-[11px] font-bold text-neutral-700 inline-flex items-center gap-1 cursor-pointer transition"
                     >
                       <RotateCcw className="w-3 h-3" />
                       <span>恢复默认</span>
                     </button>
                   }
                 />
-                <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-[#f1efe9] mt-3">
+                <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-[#f4f4f5] mt-3">
                   {[
                     { id: 'none', label: '免辣', dot: 'bg-neutral-400', activeText: 'text-[#141413]' },
                     { id: 'mild', label: '微辣', dot: 'bg-emerald-500', activeText: 'text-emerald-700' },
@@ -1700,7 +1700,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       type="button"
                       onClick={() => setIsDietaryPresetsOpen((prev) => !prev)}
                       aria-expanded={isDietaryPresetsOpen}
-                      className="h-8 px-2.5 rounded-lg bg-[#f1efe9] hover:bg-neutral-200/80 text-[11px] font-bold text-[#141413] inline-flex items-center gap-1 cursor-pointer transition"
+                      className="h-8 px-2.5 rounded-lg bg-[#f4f4f5] hover:bg-neutral-200/80 text-[11px] font-bold text-[#141413] inline-flex items-center gap-1 cursor-pointer transition"
                     >
                       <span>常用忌口</span>
                       <ChevronDown
@@ -1726,7 +1726,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         className={`h-8 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition inline-flex items-center gap-1 ${
                           isIncluded
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-600/50'
-                            : 'bg-[#f7f6f2] text-neutral-600 border border-black/[0.06] hover:bg-[#efede6]'
+                            : 'bg-[#f5f5f5] text-neutral-600 border border-black/[0.06] hover:bg-[#e5e5e5]'
                         }`}
                       >
                         {isIncluded && (
@@ -1745,7 +1745,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                 value={dietaryNotes}
                 onChange={(e) => setDietaryNotes(e.target.value)}
                 placeholder="输入其他过敏原或厨房备注..."
-                className="mt-3 w-full h-10 px-3 rounded-xl bg-[#f7f6f2] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#141413] transition placeholder:text-neutral-400"
+                className="mt-3 w-full h-10 px-3 rounded-xl bg-[#f5f5f5] border border-black/[0.07] focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 outline-none text-xs text-[#141413] transition placeholder:text-neutral-400"
               />
               </div>
                   </div>
@@ -1770,7 +1770,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       className={`w-9 h-9 rounded-xl border flex items-center justify-center cursor-pointer transition ${
                         isAddressSearchOpen || addressSearchQuery.trim()
                           ? 'bg-emerald-50 border-emerald-600/40 text-emerald-700'
-                          : 'bg-[#f7f6f2] border-black/[0.06] text-neutral-600 hover:bg-[#efede6]'
+                          : 'bg-[#f5f5f5] border-black/[0.06] text-neutral-600 hover:bg-[#e5e5e5]'
                       }`}
                     >
                       <Search className="w-4 h-4" />
@@ -1810,7 +1810,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     value={addressSearchQuery}
                     onChange={(e) => setAddressSearchQuery(e.target.value)}
                     placeholder="搜索徽章、联系人、建筑或街道..."
-                    className="w-full h-9 pl-8 pr-8 rounded-xl bg-[#f7f6f2] border border-black/[0.06] text-xs outline-none focus:bg-white focus:border-emerald-600 placeholder:text-neutral-400"
+                    className="w-full h-9 pl-8 pr-8 rounded-xl bg-[#f5f5f5] border border-black/[0.06] text-xs outline-none focus:bg-white focus:border-emerald-600 placeholder:text-neutral-400"
                   />
                   {addressSearchQuery && (
                     <button
@@ -1827,7 +1827,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     </div>
 
             {(isAddingAddress || editingAddress) && (
-              <div className="p-4 bg-[#faf9f6] space-y-3 animate-in fade-in">
+              <div className="p-4 bg-[#fafafa] space-y-3 animate-in fade-in">
                 <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.06]">
                   <span className="text-xs font-extrabold text-[#141413]">
                     {editingAddress ? '编辑送达地址' : '录入新地址'}
@@ -1839,7 +1839,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         type="button"
                         onClick={() => setIsPresetMenuOpen((prev) => !prev)}
                         aria-expanded={isPresetMenuOpen}
-                        className="h-9 px-2.5 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-[#141413] text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
+                        className="h-9 px-2.5 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 text-[#141413] text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
                       >
                         <Compass className="w-3 h-3 text-emerald-600" />
                         <span>示例快填</span>
@@ -1877,7 +1877,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                                 handleApplyPreset(preset);
                                 setIsPresetMenuOpen(false);
                               }}
-                              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[#f7f6f2] text-left flex items-center justify-between gap-2 cursor-pointer transition"
+                              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[#f5f5f5] text-left flex items-center justify-between gap-2 cursor-pointer transition"
                             >
                               <div className="min-w-0">
                                 <div className="text-[11px] font-semibold text-[#141413] truncate">
@@ -1961,7 +1961,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         className={`h-8 px-2.5 rounded-lg text-[11px] cursor-pointer transition whitespace-nowrap shrink-0 border ${
                           addrTag === tag
                             ? 'bg-[#141413] text-white border-[#141413] font-bold shadow-xs'
-                            : 'bg-white text-neutral-600 border-black/[0.08] font-semibold hover:bg-[#f1efe9]'
+                            : 'bg-white text-neutral-600 border-black/[0.08] font-semibold hover:bg-[#f4f4f5]'
                         }`}
                       >
                         {tag}
@@ -1997,7 +1997,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       setEditingAddress(null);
                       setIsPresetMenuOpen(false);
                     }}
-                    className="h-9 px-4 rounded-xl bg-[#f1efe9] text-neutral-700 text-xs font-bold cursor-pointer"
+                    className="h-9 px-4 rounded-xl bg-[#f4f4f5] text-neutral-700 text-xs font-bold cursor-pointer"
                   >
                     取消
                   </button>
@@ -2025,14 +2025,14 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     className={`rounded-2xl p-3.5 border transition ${
                       isDef
                         ? 'bg-emerald-50/30 border-emerald-600/40'
-                        : 'bg-[#faf9f6] border-black/[0.06]'
+                        : 'bg-[#fafafa] border-black/[0.06]'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2 min-w-0">
                       <div className="flex items-start gap-2.5 min-w-0 flex-1">
                         <div
                           className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                            isDef ? 'bg-emerald-100/80 text-emerald-700' : 'bg-[#f1efe9] text-neutral-700'
+                            isDef ? 'bg-emerald-100/80 text-emerald-700' : 'bg-[#f4f4f5] text-neutral-700'
                           }`}
                         >
                           <MapPin className="w-4 h-4" />
@@ -2137,7 +2137,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                                 className={`h-8 px-2.5 rounded-lg border text-[11px] cursor-pointer transition whitespace-nowrap shrink-0 ${
                                   isSelected
                                     ? 'bg-[#141413] text-white border-[#141413] font-bold'
-                                    : 'bg-[#f7f6f2] text-neutral-700 border-black/[0.07] font-semibold hover:bg-[#efede6]'
+                                    : 'bg-[#f5f5f5] text-neutral-700 border-black/[0.07] font-semibold hover:bg-[#e5e5e5]'
                                 }`}
                               >
                                 {presetTag}
@@ -2159,7 +2159,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                               }
                             }}
                             placeholder="自定义徽章名称（最多8字）"
-                            className="flex-1 min-w-0 h-9 px-2.5 rounded-lg bg-[#f7f6f2] border border-black/[0.08] focus:bg-white focus:border-emerald-600 text-xs outline-none placeholder:text-neutral-400"
+                            className="flex-1 min-w-0 h-9 px-2.5 rounded-lg bg-[#f5f5f5] border border-black/[0.08] focus:bg-white focus:border-emerald-600 text-xs outline-none placeholder:text-neutral-400"
                           />
                           <button
                             type="button"
@@ -2177,7 +2177,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleSetDefaultAddress(addr.id)}
-                          className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-neutral-700 text-[11px] font-bold cursor-pointer transition whitespace-nowrap shrink-0"
+                          className="h-9 px-3 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 text-neutral-700 text-[11px] font-bold cursor-pointer transition whitespace-nowrap shrink-0"
                         >
                           设为默认
                         </button>
@@ -2290,7 +2290,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       onClick={() => {
                         setAddressSearchQuery('');
                       }}
-                      className="mt-2.5 h-9 px-3.5 rounded-xl bg-[#f1efe9] text-xs text-emerald-700 font-bold cursor-pointer"
+                      className="mt-2.5 h-9 px-3.5 rounded-xl bg-[#f4f4f5] text-xs text-emerald-700 font-bold cursor-pointer"
                     >
                       清空搜索条件
                     </button>
@@ -2351,7 +2351,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                   type="button"
                   id="reissue-key-btn"
                   onClick={handleReissueKey}
-                  className="h-9 px-3.5 shrink-0 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-xs font-bold text-[#141413] cursor-pointer transition"
+                  className="h-9 px-3.5 shrink-0 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 text-xs font-bold text-[#141413] cursor-pointer transition"
                 >
                   重新签发
                 </button>
@@ -2398,7 +2398,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                             toast.info('复制成功', '硬件签名令牌已复制到剪贴板');
                           }}
                           aria-label="复制硬件令牌"
-                          className="w-8 h-8 rounded-lg text-neutral-400 hover:text-[#141413] hover:bg-[#f1efe9] flex items-center justify-center cursor-pointer shrink-0"
+                          className="w-8 h-8 rounded-lg text-neutral-400 hover:text-[#141413] hover:bg-[#f4f4f5] flex items-center justify-center cursor-pointer shrink-0"
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </button>
@@ -2451,7 +2451,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                             className={`rounded-xl py-2.5 px-1 text-center border transition cursor-pointer ${
                               isSelected
                                 ? 'bg-[#141413] border-[#141413] text-white shadow-xs'
-                                : 'bg-[#f7f6f2] border-black/[0.06] text-[#141413] hover:bg-[#efede6]'
+                                : 'bg-[#f5f5f5] border-black/[0.06] text-[#141413] hover:bg-[#e5e5e5]'
                             }`}
                           >
                             <div className="text-xs font-extrabold tabular-nums">¥{tier.amount}</div>
@@ -2504,7 +2504,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                       }
                     />
 
-              <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-[#f1efe9] my-3">
+              <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-[#f4f4f5] my-3">
                 {[
                   { key: 'all', label: '全部' },
                   { key: 'recharge', label: '充值' },
@@ -2552,7 +2552,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                                 ? 'bg-emerald-50 text-emerald-700'
                                 : item.type === 'reward'
                                   ? 'bg-amber-50 text-amber-700'
-                                  : 'bg-[#f1efe9] text-neutral-700'
+                                  : 'bg-[#f4f4f5] text-neutral-700'
                             }`}
                           >
                             <Icon className="w-4 h-4" />
@@ -2598,7 +2598,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                 data-purpose="embedded-window"
                 className="w-full bg-white rounded-2xl border border-black/[0.08] shadow-[0_6px_24px_-10px_rgba(20,20,19,0.12)] overflow-hidden animate-in fade-in"
               >
-                <div className="bg-[#faf9f6] px-4 py-3 border-b border-black/[0.06] flex items-center justify-between gap-2.5">
+                <div className="bg-[#fafafa] px-4 py-3 border-b border-black/[0.06] flex items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="w-8 h-8 rounded-xl bg-[#141413] text-emerald-400 flex items-center justify-center shrink-0">
                       <WindowIcon className="w-4 h-4" />
@@ -2623,7 +2623,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                     type="button"
                     onClick={() => setActiveWindowTab(null)}
                     aria-label="关闭内嵌窗口"
-                    className="h-9 px-3 rounded-xl bg-white border border-black/[0.08] hover:bg-[#f1efe9] text-neutral-700 text-[11px] font-bold inline-flex items-center gap-1 transition cursor-pointer shrink-0"
+                    className="h-9 px-3 rounded-xl bg-white border border-black/[0.08] hover:bg-[#f4f4f5] text-neutral-700 text-[11px] font-bold inline-flex items-center gap-1 transition cursor-pointer shrink-0"
                   >
                     <X className="w-3.5 h-3.5" />
                     <span>返回</span>
@@ -2632,7 +2632,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
 
                 <div className="bg-white">{renderWindowBody()}</div>
 
-                <div className="bg-[#faf9f6] px-4 py-3 border-t border-black/[0.06] flex items-center justify-between gap-2">
+                <div className="bg-[#fafafa] px-4 py-3 border-t border-black/[0.06] flex items-center justify-between gap-2">
                   <span className="text-[11px] font-semibold text-neutral-400 truncate">
                     {hasUnsavedChanges ? '存在未保存修改' : `参数已同步 · ${lastSyncTime}`}
                   </span>
@@ -2643,7 +2643,7 @@ export const UserProfileEditView: React.FC<UserProfileEditViewProps> = ({
                           type="button"
                           onClick={handleDiscardChanges}
                           disabled={isSyncing}
-                          className="h-9 px-3 rounded-xl bg-[#f1efe9] hover:bg-neutral-200/80 text-neutral-700 text-xs font-bold cursor-pointer transition disabled:opacity-50"
+                          className="h-9 px-3 rounded-xl bg-[#f4f4f5] hover:bg-neutral-200/80 text-neutral-700 text-xs font-bold cursor-pointer transition disabled:opacity-50"
                         >
                           还原
                         </button>
